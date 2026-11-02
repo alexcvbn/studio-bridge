@@ -11,7 +11,7 @@ Roblox Studio 코드를 웹으로 보내 자료함에 모으고, 기능 카드�
 - C·D·A 담당 폴더는 수정하지 않는다. 필요하면 이유와 영향을 먼저 설명한다.
 - 패키지 추가는 B가 모아서 반영한다. 추가 전에 이유를 설명한다.
 - 컴포넌트 간 callback(`onAddMaterial(materialId)`, `onOpenFeature(featureId)`)을 바꾸면 상대 담당과 같이 수정한다.
-- 없는 API·실행 파일이 이미 있다고 가정하지 않는다. `server/`는 아직 비어 있다.
+- 없는 API·실행 파일이 이미 있다고 가정하지 않는다. 서버는 A 담당이며 `feat/1-server-health` 브랜치에 `GET /api/health`와 SQLite 기반만 있다(포트 8000, `uv run uvicorn app.main:app --port 8000`). 자료·기능 API는 아직 없다.
 
 ## 보드 데이터 규칙 (Yjs)
 - 문서 이름: `studio-bridge/main` 하나. 사람마다 다른 방을 만들지 않는다.
