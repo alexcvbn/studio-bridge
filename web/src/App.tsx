@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { BoardView } from './features/board'
+import { FeatureView } from './features/features/FeatureView'
+import { MaterialLibrary } from './features/materials/MaterialLibrary'
+
+type Menu = 'home' | 'board' | 'features' | 'materials'
 
 function App() {
-  const [menu, setMenu] = useState<'home' | 'board'>('home')
+  const [menu, setMenu] = useState<Menu>('home')
 
   return (
     <>
@@ -13,16 +17,30 @@ function App() {
         <button type="button" onClick={() => setMenu('board')}>
           보드
         </button>
+        <button type="button" onClick={() => setMenu('features')}>
+          기능
+        </button>
+        <button type="button" onClick={() => setMenu('materials')}>
+          자료함
+        </button>
       </nav>
 
-      <main>
-        {menu === 'board' ? (
-          <div style={{ height: '80vh' }}>
-            <BoardView />
-          </div>
-        ) : (
-          <p>보드 메뉴를 눌러 주세요.</p>
-        )}
+      <main style={{ padding: 16 }}>
+        <section hidden={menu !== 'home'}>
+          <p>메뉴에서 사용할 화면을 선택하세요.</p>
+        </section>
+
+        <section hidden={menu !== 'board'} style={{ height: '80vh' }}>
+          <BoardView />
+        </section>
+
+        <section hidden={menu !== 'features'}>
+          <FeatureView />
+        </section>
+
+        <section hidden={menu !== 'materials'}>
+          <MaterialLibrary />
+        </section>
       </main>
     </>
   )
