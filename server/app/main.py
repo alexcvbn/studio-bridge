@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import materials
 from app.db import init_db
 from app.features import router as features_router
 
@@ -21,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(features_router)
+app.include_router(materials.router)
 
 
 @app.get("/api/health")
