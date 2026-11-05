@@ -1,49 +1,109 @@
-import { useState } from 'react'
-import { SAMPLE_MATERIALS, type MaterialSample } from './sampleMaterials'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fetchMaterial, fetchMaterials, type MaterialDetail, type MaterialSummary } from './materialsApi'
 
-type Props = { materials?: MaterialSample[] }
+export function MaterialLibrary() {
+  // 목록 상태: 불러오는 중 / 실패 메시지 / 받은 목록
+  const [items, setItems] = useState<MaterialSummary[]>([])
+  const [listLoading, setListLoading] = useState(true)
+  const [listError, setListError] = useState<string | null>(null)
 
-export function MaterialLibrary({ materials = SAMPLE_MATERIALS }: Props) {
-  // 선택한 자료는 객체가 아니라 ID로만 기억한다 (이름이 같아도 구분하기 위해)
+  // 상세 상태: 고른 ID / 그 자료의 원문 / 불러오는 중 / 실패 메시지
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = materials.find((m) => m.material_id === selectedId) ?? null
+  const [detail, setDetail] = useState<MaterialDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const latestRequest = useRef(0) // 빨리 바꿔 눌러도 마지막 선택의 응답만 쓰기 위한 번호
+
+  const loadList = useCallback(async () => {
+    setListLoading(true)
+    setListError(null)
+    try {
+      setItems(await fetchMaterials())
+    } catch (e) {
+      setListError((e as Error).message) // 실패해도 이전 목록은 그대로 둔다
+    } finally {
+      setListLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    // 화면이 처음 열릴 때 한 번 목록을 불러온다 (listLoading은 true로 시작)
+    fetchMaterials()
+      .then(setItems)
+      .catch((e: Error) => setListError(e.message))
+      .finally(() => setListLoading(false))
+  }, [])
+
+  async function select(materialId: string) {
+    const requestNo = ++latestRequest.current
+    setSelectedId(materialId)
+    setDetail(null)
+    setDetailError(null)
+    setDetailLoading(true)
+    try {
+      const data = await fetchMaterial(materialId)
+      if (requestNo === latestRequest.current) setDetail(data)
+    } catch (e) {
+      if (requestNo === latestRequest.current) setDetailError((e as Error).message)
+    } finally {
+      if (requestNo === latestRequest.current) setDetailLoading(false)
+    }
+  }
 
   return (
     <section style={{ display: 'flex', gap: 16, textAlign: 'left' }}>
-      <div style={{ width: 240 }}>
+      <div style={{ width: 260 }}>
         <h2>받은 자료함</h2>
-        <p style={{ color: '#b45309' }}>예시 데이터 · 새로고침하면 초기화됩니다</p>
-        {materials.length === 0 ? (
-          <p>아직 받은 자료가 없습니다. Studio에서 코드를 보내면 여기에 나타납니다.</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {materials.map((m) => (
-              <li key={m.material_id}>
-                <button
-                  onClick={() => setSelectedId(m.material_id)}
-                  aria-pressed={m.material_id === selectedId}
-                  style={{ width: '100%', fontWeight: m.material_id === selectedId ? 700 : 400 }}
-                >
-                  {m.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+        <p style={{ color: '#15803d' }}>실제 서버 데이터 · 새로고침해도 유지됩니다</p>
+        <button type="button" onClick={() => void loadList()} disabled={listLoading}>
+          {listLoading ? '불러오는 중…' : '새로고침'}
+        </button>
+
+        {listError && (
+          <p role="alert" style={{ color: '#b91c1c' }}>
+            목록을 불러오지 못했습니다: {listError}
+          </p>
         )}
+        {!listLoading && !listError && items.length === 0 && (
+          <p>아직 받은 자료가 없습니다. Studio에서 코드를 보내면 여기에 나타납니다.</p>
+        )}
+
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {items.map((m) => (
+            <li key={m.material_id}>
+              <button
+                type="button"
+                onClick={() => void select(m.material_id)}
+                aria-pressed={m.material_id === selectedId}
+                style={{ width: '100%', fontWeight: m.material_id === selectedId ? 700 : 400 }}
+              >
+                {m.name}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div style={{ flex: 1 }}>
-        {selected === null ? (
-          <p>왼쪽에서 자료를 선택하면 원문이 보입니다.</p>
-        ) : (
+        {selectedId === null && <p>왼쪽에서 자료를 선택하면 원문이 보입니다.</p>}
+        {detailLoading && <p>원문을 불러오는 중…</p>}
+        {detailError && selectedId && (
+          <p role="alert" style={{ color: '#b91c1c' }}>
+            원문을 불러오지 못했습니다: {detailError}{' '}
+            <button type="button" onClick={() => void select(selectedId)}>
+              다시 시도
+            </button>
+          </p>
+        )}
+        {detail && (
           <>
-            <h3>{selected.name}</h3>
+            <h3>{detail.current_snapshot.name}</h3>
             <p>
-              {selected.source_path} · {selected.script_type}
+              {detail.current_snapshot.source_path} · {detail.current_snapshot.script_type} · 받은 시각{' '}
+              {new Date(detail.current_snapshot.received_at).toLocaleString()}
             </p>
-            {/* 원문은 가공하지 않고 그대로. pre가 공백·줄바꿈을 지켜준다 */}
             <pre style={{ background: '#111', color: '#eee', padding: 12, whiteSpace: 'pre', overflowX: 'auto' }}>
-              <code>{selected.raw_code}</code>
+              <code>{detail.current_snapshot.raw_code}</code>
             </pre>
           </>
         )}

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app import materials
 from app.db import init_db
 
 
@@ -12,6 +13,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(materials.router)
 
 
 @app.get("/api/health")
