@@ -1,0 +1,13 @@
+{
+  "name": "sync",
+  "private": true,
+  "version": "0.0.0",
+  "description": "보드 카드 위치 실시간 동기화 서버 (y-websocket)",
+  "scripts": {
+    "start": "y-websocket"
+  },
+  "dependencies": {
+    "y-websocket": "2.1.0",
+    "yjs": "13.6.33"
+  }
+}
