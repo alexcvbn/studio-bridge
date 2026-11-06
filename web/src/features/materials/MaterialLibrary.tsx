@@ -102,6 +102,10 @@ export function MaterialLibrary() {
               {detail.current_snapshot.source_path} · {detail.current_snapshot.script_type} · 받은 시각{' '}
               {new Date(detail.current_snapshot.received_at).toLocaleString()}
             </p>
+                        <p style={{ fontSize: 12, color: '#666' }}>
+              material_id {detail.material_id} · request_id {detail.current_snapshot.request_id} · {detail.current_snapshot.raw_code.split('\n').length}줄 ·{' '}
+              {detail.current_snapshot.raw_code.length}자
+            </p>
             <pre style={{ background: '#111', color: '#eee', padding: 12, whiteSpace: 'pre', overflowX: 'auto' }}>
               <code>{detail.current_snapshot.raw_code}</code>
             </pre>
