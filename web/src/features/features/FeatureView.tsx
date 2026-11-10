@@ -1,25 +1,24 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { ApiError, createFeature, fetchFeature, fetchFeatures } from './featuresApi'
+import type { Feature, FeatureStatus } from './featuresApi'
 
-export type FeatureStatus = 'todo' | 'doing' | 'done'
-
-// 서버(GET/POST /features) 응답과 같은 형태
-export interface Feature {
-  feature_id: string
-  project_id: string
-  title: string
-  status: FeatureStatus
-  assignee: string | null
-  created_at: string
-}
+export type { Feature, FeatureStatus } from './featuresApi'
 
 interface FeatureViewProps {
-  /** B의 보드 카드 등이 기능을 열 때 쓰는 연결 지점 */
+  /** 바깥(B의 보드 카드 등)에서 열 기능 ID. 넘기면 이 ID가 선택 기준이 된다. */
+  openFeatureId?: string | null
+  /** 목록에서 기능을 고르면 그 ID를 알려 준다. */
   onSelectFeature?: (featureId: string) => void
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
-const FEATURES_URL = `${API_BASE}/api/projects/studio-bridge/features`
+interface DetailResult {
+  id: string
+  feature: Feature | null
+  message: string
+  status: number | null
+}
+
 const MAX_TITLE = 100
 const STATUS_LABEL: Record<FeatureStatus, string> = {
   todo: '대기',
@@ -27,36 +26,11 @@ const STATUS_LABEL: Record<FeatureStatus, string> = {
   done: '완료',
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(url, init)
-  } catch {
-    throw new Error('서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인하세요.')
-  }
-  if (!res.ok) {
-    let message = `요청에 실패했습니다. (${res.status})`
-    try {
-      const body = await res.json()
-      const detail = body?.detail
-      if (Array.isArray(detail)) {
-        message = '입력 형식이 올바르지 않습니다.'
-      } else if (detail && typeof detail.message === 'string') {
-        message = detail.message
-      }
-    } catch {
-      // 응답 본문이 없으면 기본 메시지를 쓴다
-    }
-    throw new Error(message)
-  }
-  return (await res.json()) as T
-}
-
-export function FeatureView({ onSelectFeature }: FeatureViewProps) {
+export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps) {
   const [features, setFeatures] = useState<Feature[]>([])
   const [listState, setListState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [listError, setListError] = useState('')
-  const [reloadKey, setReloadKey] = useState(0)
+  const [listReload, setListReload] = useState(0)
 
   const [input, setInput] = useState('')
   const [formError, setFormError] = useState('')
@@ -64,52 +38,76 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
   const [creating, setCreating] = useState(false)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [detail, setDetail] = useState<Feature | null>(null)
-  const [detailState, setDetailState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [detailError, setDetailError] = useState('')
-  const detailReq = useRef(0)
+  const activeId = openFeatureId !== undefined ? openFeatureId : selectedId
+  const [detailResult, setDetailResult] = useState<DetailResult | null>(null)
+  const [detailReload, setDetailReload] = useState(0)
 
+  // 목록: 서버 기준으로 불러온다. 생성 뒤에도 같은 방식으로 다시 불러온다.
   useEffect(() => {
     let cancelled = false
-    request<{ items: Feature[] }>(FEATURES_URL)
-      .then((data) => {
+    fetchFeatures()
+      .then((items) => {
         if (cancelled) return
-        setFeatures(data.items)
+        setFeatures(items)
         setListState('ready')
+        setListError('')
       })
       .catch((e: Error) => {
         if (cancelled) return
         setListError(e.message)
-        setListState('error')
+        setListState((prev) => (prev === 'ready' ? 'ready' : 'error'))
       })
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [listReload])
 
-  function retryList() {
-    setListState('loading')
-    setReloadKey((k) => k + 1)
-  }
+  // 상세: 선택한 ID가 바뀌면 이전 요청의 응답은 버린다 (빠른 전환 대비)
+  useEffect(() => {
+    if (activeId === null) return
+    let cancelled = false
+    fetchFeature(activeId)
+      .then((feature) => {
+        if (cancelled) return
+        setDetailResult({ id: activeId, feature, message: '', status: 200 })
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setDetailResult({
+          id: activeId,
+          feature: null,
+          message: e instanceof Error ? e.message : '불러오지 못했습니다.',
+          status: e instanceof ApiError ? e.status : null,
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, detailReload])
+
+  const detailState =
+    activeId === null
+      ? 'idle'
+      : detailResult === null || detailResult.id !== activeId
+        ? 'loading'
+        : detailResult.feature
+          ? 'ready'
+          : 'error'
 
   function selectFeature(featureId: string) {
-    // 빠르게 다른 기능을 눌러도 이전 요청의 응답이 현재 선택을 덮어쓰지 않게 한다
-    const reqId = ++detailReq.current
     setSelectedId(featureId)
-    setDetailState('loading')
-    setDetailError('')
     onSelectFeature?.(featureId)
-    request<Feature>(`${FEATURES_URL}/${featureId}`)
-      .then((f) => {
-        if (detailReq.current !== reqId) return
-        setDetail(f)
-        setDetailState('idle')
-      })
-      .catch((e: Error) => {
-        if (detailReq.current !== reqId) return
-        setDetailError(e.message)
-        setDetailState('error')
-      })
+  }
+
+  function retryList() {
+    setListState((prev) => (prev === 'error' ? 'loading' : prev))
+    setListError('')
+    setListReload((k) => k + 1)
+  }
+
+  function retryDetail() {
+    setDetailResult(null)
+    setDetailReload((k) => k + 1)
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -128,15 +126,12 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
     setFormError('')
     setNotice('')
     try {
-      const created = await request<Feature>(FEATURES_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      })
-      setFeatures((prev) => [...prev, created])
+      const created = await createFeature(title)
+      setFeatures((prev) => [...prev, created]) // 곧바로 보이게
       setInput('')
       setNotice(`“${created.title}” 기능을 저장했습니다.`)
-      selectFeature(created.feature_id)
+      setListReload((k) => k + 1) // 서버 기준으로 목록 다시 조회
+      selectFeature(created.feature_id) // 상세도 서버에서 다시 조회
     } catch (err) {
       // 저장에 실패하면 입력한 제목을 그대로 남긴다
       setFormError(err instanceof Error ? err.message : '저장에 실패했습니다.')
@@ -145,7 +140,7 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
     }
   }
 
-  const selectedIndex = features.findIndex((f) => f.feature_id === selectedId)
+  const activeIndex = features.findIndex((f) => f.feature_id === activeId)
 
   return (
     <section aria-label="기능 목록과 상세">
@@ -179,6 +174,14 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
               </button>
             </div>
           )}
+          {listState === 'ready' && listError !== '' && (
+            <div role="alert">
+              <p style={{ color: '#c0392b' }}>목록을 새로 고치지 못했습니다. {listError}</p>
+              <button type="button" onClick={retryList}>
+                다시 시도
+              </button>
+            </div>
+          )}
           {listState === 'ready' && features.length === 0 && (
             <p>아직 기능이 없습니다. 제목을 입력해 첫 기능을 만드세요.</p>
           )}
@@ -189,12 +192,12 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
                   <button
                     type="button"
                     onClick={() => selectFeature(f.feature_id)}
-                    aria-pressed={f.feature_id === selectedId}
+                    aria-pressed={f.feature_id === activeId}
                     style={{
                       width: '100%',
                       textAlign: 'left',
                       marginBottom: 6,
-                      fontWeight: f.feature_id === selectedId ? 700 : 400,
+                      fontWeight: f.feature_id === activeId ? 700 : 400,
                     }}
                   >
                     F-{i + 1} {f.title}
@@ -207,31 +210,40 @@ export function FeatureView({ onSelectFeature }: FeatureViewProps) {
 
         <div style={{ minWidth: 260, flex: 1 }}>
           <h2>기능 상세</h2>
-          {selectedId === null && <p>목록에서 기능을 선택하세요.</p>}
-          {selectedId !== null && detailState === 'loading' && <p>불러오는 중...</p>}
-          {selectedId !== null && detailState === 'error' && (
+          {detailState === 'idle' && <p>목록에서 기능을 선택하세요.</p>}
+          {detailState === 'loading' && <p>불러오는 중...</p>}
+          {detailState === 'error' && detailResult !== null && detailResult.status === 404 && (
             <div role="alert">
-              <p style={{ color: '#c0392b' }}>{detailError}</p>
-              <button type="button" onClick={() => selectFeature(selectedId)}>
+              <p style={{ color: '#c0392b' }}>기능을 찾을 수 없습니다.</p>
+              <p>
+                삭제되었거나 잘못된 ID입니다. <code>{activeId}</code>
+              </p>
+              <p>목록에서 다른 기능을 선택하세요.</p>
+            </div>
+          )}
+          {detailState === 'error' && detailResult !== null && detailResult.status !== 404 && (
+            <div role="alert">
+              <p style={{ color: '#c0392b' }}>{detailResult.message}</p>
+              <button type="button" onClick={retryDetail}>
                 다시 시도
               </button>
             </div>
           )}
-          {detail !== null && selectedId !== null && detailState === 'idle' && (
+          {detailState === 'ready' && detailResult?.feature && (
             <dl>
               <dt>제목</dt>
               <dd>
-                {selectedIndex >= 0 ? `F-${selectedIndex + 1} ` : ''}
-                {detail.title}
+                {activeIndex >= 0 ? `F-${activeIndex + 1} ` : ''}
+                {detailResult.feature.title}
               </dd>
               <dt>기능 ID</dt>
               <dd>
-                <code>{detail.feature_id}</code>
+                <code>{detailResult.feature.feature_id}</code>
               </dd>
               <dt>상태</dt>
-              <dd>{STATUS_LABEL[detail.status]}</dd>
+              <dd>{STATUS_LABEL[detailResult.feature.status]}</dd>
               <dt>담당자</dt>
-              <dd>{detail.assignee ?? '미지정'}</dd>
+              <dd>{detailResult.feature.assignee ?? '미지정'}</dd>
               <dt>연결 자료 / 결정</dt>
               <dd>아직 연결되지 않았습니다. (이번 회차 범위 아님)</dd>
             </dl>
