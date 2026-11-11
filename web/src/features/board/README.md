@@ -23,9 +23,30 @@ React Flow 기반 보드. 카드 위치는 `sync/` 서버(Yjs)로 다른 브라�
 - 서버에 없는 ID: "찾을 수 없음"(빨간 테두리). 기능 열기 버튼은 숨긴다.
 - 목록을 읽지 못함(서버 꺼짐 등): "확인 실패"와 "다시 시도" 버튼. 없는 ID와 구분해서 표시한다.
 
-## 다른 화면과 연결
-```tsx
-<BoardView onOpenFeature={(featureId) => { /* 기능 화면 열기 */ }} />
+## 카드 추가·제거 (04회차)
+```ts
+import { addMaterialCard } from './features/board'
+addMaterialCard(materialId) // 새 card_id의 자료 카드를 만든다. 보드 화면이 숨겨져 있어도 동작한다.
 ```
+- 같은 자료를 다시 추가하면 같은 `target_id`의 **새 카드**가 생긴다(중복 허용).
+- "카드 제거 (보드에서만)"는 보드 상태에서만 지운다. 서버의 자료·기능·결정은 그대로이며 서버에 삭제 요청을 보내지 않는다.
+- 제거한 `card_id`는 `removedCardIds`에 남겨, 다른 브라우저의 늦은 이동 이벤트가 카드를 되살리지 못하게 한다.
+- 배치의 영구 저장은 06회차 범위다. 지금은 동기화 서버가 켜져 있는 동안만 유지된다.
+
+## 연결 방법 (A·C·D에게)
+보드 쪽은 준비돼 있고, 아래 두 파일에 한 줄씩 연결하면 이슈 #14의 장면이 완성된다.
+
+**D — `MaterialLibrary.tsx`**: `onAddMaterial?: (materialId: string) => void` prop을 추가하고, 선택한 자료의 "보드에 추가" 버튼에서 `onAddMaterial(selectedId)`를 호출한다.
+
+**A — `App.tsx`**: 조립만 하면 된다.
+```tsx
+import { BoardView, addMaterialCard } from './features/board'
+
+const [openFeatureId, setOpenFeatureId] = useState<string | null>(null)
+
+<BoardView onOpenFeature={(id) => { setOpenFeatureId(id); setMenu('features') }} />
+<FeatureView openFeatureId={openFeatureId} onSelectFeature={setOpenFeatureId} />
+<MaterialLibrary onAddMaterial={addMaterialCard} />
+```
+- C의 `FeatureView`는 이미 `openFeatureId`를 받는다. 기능 카드의 `target_id`가 상세의 기능 ID와 같다.
 - `onOpenFeature(featureId)`: 보드에서 기능 카드를 선택하고 "기능 열기"를 누르면 호출된다.
-- 자료함의 "보드에 추가" 버튼 연결은 04회차 범위다. 지금은 보드 상단 선택 목록에서 서버의 자료·기능을 골라 추가한다.

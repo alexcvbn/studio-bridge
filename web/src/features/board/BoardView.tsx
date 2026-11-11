@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Background,
   Controls,
@@ -8,7 +8,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { connectBoardSync, type BoardSync, type SyncStatus } from './boardSync'
+import { addCard, getBoardSync, removeCard, type SyncStatus } from './boardSync'
 import { fetchTargets, type TargetInfo } from './targetsApi'
 import type { BoardCard, CardKind } from './types'
 
@@ -19,9 +19,6 @@ const STATUS_TEXT: Record<SyncStatus, string> = {
 }
 
 const KIND_TEXT: Record<CardKind, string> = { material: '자료', feature: '기능' }
-
-// 새 카드는 카드 폭(200px)에 맞춘 격자에 놓아 서로 겹치지 않게 한다.
-const GRID = { cols: 4, w: 240, h: 110, x: 40, y: 40 }
 
 export interface BoardViewProps {
   onOpenFeature?: (featureId: string) => void
@@ -44,32 +41,34 @@ function cardToNode(card: BoardCard): CardNode {
   }
 }
 
+// 공유 상태의 카드로 노드를 만든다. 기존 노드 객체는 유지하고 위치만 갱신하며, 제거된 카드는 그리지 않는다.
+function syncNodes(prev: CardNode[]): CardNode[] {
+  const { cards, removedCardIds } = getBoardSync()
+  return [...cards.values()]
+    .filter((card) => !removedCardIds.has(card.card_id))
+    .map((card) => {
+      const old = prev.find((n) => n.id === card.card_id)
+      return old ? { ...old, position: card.position } : cardToNode(card)
+    })
+}
+
 export function BoardView({ onOpenFeature }: BoardViewProps) {
   // 노드 상태는 React Flow가 잰 크기·선택 정보를 보존하도록 그대로 들고 있는다.
-  const [nodes, setNodes] = useState<CardNode[]>([])
+  const [nodes, setNodes] = useState<CardNode[]>(() => syncNodes([]))
   const [status, setStatus] = useState<SyncStatus>('connecting')
   const [targetState, setTargetState] = useState<TargetState>({ phase: 'loading' })
   const [pick, setPick] = useState('')
-  const sharedCards = useRef<BoardSync['cards'] | null>(null)
 
   useEffect(() => {
-    const sync = connectBoardSync(setStatus)
-    sharedCards.current = sync.cards
-    // 공유 상태가 바뀌면(내 이동 포함) 기존 노드 객체는 유지하고 위치만 갱신한다.
-    const apply = () => {
-      const shared = [...sync.cards.values()]
-      setNodes((prev) =>
-        shared.map((card) => {
-          const old = prev.find((n) => n.id === card.card_id)
-          return old ? { ...old, position: card.position } : cardToNode(card)
-        }),
-      )
-    }
+    const sync = getBoardSync()
+    const apply = () => setNodes(syncNodes)
     sync.cards.observe(apply)
+    sync.removedCardIds.observe(apply)
+    const unsubscribe = sync.subscribeStatus(setStatus)
     return () => {
       sync.cards.unobserve(apply)
-      sharedCards.current = null
-      sync.destroy()
+      sync.removedCardIds.unobserve(apply)
+      unsubscribe()
     }
   }, [])
 
@@ -135,26 +134,25 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
     // 이동한 카드의 위치만 공유 상태에 반영한다.
     for (const change of changes) {
       if (change.type !== 'position' || !change.position) continue
-      const card = sharedCards.current?.get(change.id)
-      if (card) sharedCards.current?.set(change.id, { ...card, position: change.position })
+      const { cards, removedCardIds } = getBoardSync()
+      const card = cards.get(change.id)
+      // 제거된 카드의 이동 이벤트는 무시한다.
+      if (card && !removedCardIds.has(change.id)) {
+        cards.set(change.id, { ...card, position: change.position })
+      }
     }
   }, [])
 
   const handleAdd = () => {
     if (targetState.phase !== 'ready' || !pick) return
     const target = targetState.targets.find((t) => key(t.kind, t.target_id) === pick)
-    if (!target || !sharedCards.current) return
-    const n = sharedCards.current.size
-    const card: BoardCard = {
-      card_id: crypto.randomUUID(),
-      kind: target.kind,
-      target_id: target.target_id,
-      position: {
-        x: GRID.x + (n % GRID.cols) * GRID.w,
-        y: GRID.y + Math.floor(n / GRID.cols) * GRID.h,
-      },
-    }
-    sharedCards.current.set(card.card_id, card)
+    if (!target) return
+    addCard(target.kind, target.target_id)
+  }
+
+  // 보드에서만 제거한다. 서버의 자료·기능은 그대로 남는다.
+  const handleRemove = (cardId: string) => {
+    removeCard(cardId)
   }
 
   const selectedNode = nodes.find((n) => n.selected)
@@ -210,6 +208,11 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
         {canOpen && selected && (
           <button type="button" onClick={() => onOpenFeature(selected.targetId)}>
             기능 열기
+          </button>
+        )}
+        {selected && (
+          <button type="button" onClick={() => handleRemove(selected.card_id)}>
+            카드 제거 (보드에서만)
           </button>
         )}
       </div>
