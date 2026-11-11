@@ -10,6 +10,23 @@ export interface Feature {
   created_at: string
 }
 
+// 기능에 연결된 자료 (자료 이름 등은 D의 가장 최근 수집본 기준)
+export interface LinkedMaterial {
+  material_id: string
+  source_uid: string
+  name: string
+  source_path: string
+  script_type: string
+  received_at: string
+  linked_at: string
+}
+
+export interface MaterialLink {
+  feature_id: string
+  material_id: string
+  already_linked: boolean
+}
+
 export class ApiError extends Error {
   status: number | null
 
@@ -68,5 +85,20 @@ export function createFeature(title: string): Promise<Feature> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title }),
+  })
+}
+
+const materialsOfUrl = (featureId: string) => `${featureUrl(featureId)}/materials`
+
+/** 기능에 연결된 자료 목록 */
+export async function fetchLinkedMaterials(featureId: string): Promise<LinkedMaterial[]> {
+  const data = await request<{ items: LinkedMaterial[] }>(materialsOfUrl(featureId))
+  return data.items
+}
+
+/** 자료를 기능에 연결한다 (D의 자료함 "기능에 연결" 버튼이 호출). 같은 연결을 반복해도 하나만 남는다. */
+export function linkMaterial(featureId: string, materialId: string): Promise<MaterialLink> {
+  return request<MaterialLink>(`${materialsOfUrl(featureId)}/${encodeURIComponent(materialId)}`, {
+    method: 'PUT',
   })
 }
