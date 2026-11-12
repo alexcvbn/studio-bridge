@@ -27,6 +27,21 @@ export interface MaterialLink {
   already_linked: boolean
 }
 
+// 기능에 대한 팀의 결정 (표시명은 사용자가 직접 입력한 이름이며 인증된 신원이 아님)
+export interface Decision {
+  decision_id: string
+  feature_id: string
+  body: string
+  author_display_name: string
+  created_at: string
+  decision_no: number
+}
+
+export interface DecisionList {
+  current: Decision | null
+  items: Decision[] // decision_no 내림차순 (첫 항목이 현재 결정)
+}
+
 export class ApiError extends Error {
   status: number | null
 
@@ -100,5 +115,25 @@ export async function fetchLinkedMaterials(featureId: string): Promise<LinkedMat
 export function linkMaterial(featureId: string, materialId: string): Promise<MaterialLink> {
   return request<MaterialLink>(`${materialsOfUrl(featureId)}/${encodeURIComponent(materialId)}`, {
     method: 'PUT',
+  })
+}
+
+const decisionsUrl = (featureId: string) => `${featureUrl(featureId)}/decisions`
+
+/** 현재 결정과 이전 결정 목록 */
+export function fetchDecisions(featureId: string): Promise<DecisionList> {
+  return request<DecisionList>(decisionsUrl(featureId))
+}
+
+/** 결정을 새로 기록한다. 이전 결정은 덮어쓰지 않고 남는다. */
+export function createDecision(
+  featureId: string,
+  body: string,
+  authorDisplayName: string,
+): Promise<Decision> {
+  return request<Decision>(decisionsUrl(featureId), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, author_display_name: authorDisplayName }),
   })
 }

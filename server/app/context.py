@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.features import Feature, FeatureMaterial, check_project, error_detail
+from app.features import Feature, FeatureMaterial, check_project, current_decision_of, error_detail
 from app.materials import Material, latest_snapshot
 
 
@@ -98,8 +98,7 @@ def get_context(
                 "title": f.title,
                 "status": f.status,
                 "assignee": f.assignee,
-                # 결정 표(05회차 C)가 생기면 가장 큰 decision_no를 여기에 넣는다.
-                "current_decision": None,
+                "current_decision": current_decision_of(db, f.feature_id),
             }
             for f in rows
         ],

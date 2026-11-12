@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import ForeignKey, String, select
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -11,6 +11,8 @@ from app.db import FIXED_PROJECT_ID, Base, get_db
 from app.materials import Material, latest_snapshot
 
 TITLE_MAX = 100
+BODY_MAX = 2000
+AUTHOR_MAX = 30
 
 
 class Feature(Base):
@@ -41,6 +43,26 @@ class FeatureMaterial(Base):
         ForeignKey("projects.project_id"), index=True
     )
     linked_at: Mapped[str] = mapped_column(String)  # 서버 UTC ISO 8601
+
+
+class Decision(Base):
+    """기능에 대한 팀의 결정. 덮어쓰지 않고 새 기록만 추가하며, 가장 큰 decision_no가 현재 결정이다."""
+
+    __tablename__ = "decisions"
+    __table_args__ = (UniqueConstraint("feature_id", "decision_no"),)
+
+    decision_id: Mapped[str] = mapped_column(String, primary_key=True)
+    feature_id: Mapped[str] = mapped_column(
+        ForeignKey("features.feature_id"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.project_id"), index=True
+    )
+    body: Mapped[str] = mapped_column(Text)
+    # 사용자가 직접 입력한 표시명이다. 로그인한 사용자의 신원이 아니다.
+    author_display_name: Mapped[str] = mapped_column(String(AUTHOR_MAX))
+    created_at: Mapped[str] = mapped_column(String)  # 서버 UTC ISO 8601
+    decision_no: Mapped[int] = mapped_column(Integer)
 
 
 class FeatureCreate(BaseModel):
@@ -82,6 +104,27 @@ class LinkedMaterialList(BaseModel):
     items: list[LinkedMaterialOut]
 
 
+class DecisionCreate(BaseModel):
+    body: str
+    author_display_name: str
+
+
+class DecisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    decision_id: str
+    feature_id: str
+    body: str
+    author_display_name: str
+    created_at: str
+    decision_no: int
+
+
+class DecisionList(BaseModel):
+    current: DecisionOut | None
+    items: list[DecisionOut]  # decision_no 내림차순 (첫 항목이 현재 결정)
+
+
 def error_detail(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
@@ -107,6 +150,23 @@ def require_feature(db: Session, project_id: str, feature_id: str) -> Feature:
             detail=error_detail("feature_not_found", "기능을 찾을 수 없습니다."),
         )
     return feature
+
+
+def current_decision_of(db: Session, feature_id: str) -> dict[str, str | int] | None:
+    """기능의 현재 결정(가장 큰 decision_no)을 문맥 조회 응답 모양으로 돌려준다. 없으면 None."""
+    decision = db.scalars(
+        select(Decision)
+        .where(Decision.feature_id == feature_id)
+        .order_by(Decision.decision_no.desc())
+    ).first()
+    if decision is None:
+        return None
+    return {
+        "decision_no": decision.decision_no,
+        "body": decision.body,
+        "author_display_name": decision.author_display_name,
+        "created_at": decision.created_at,
+    }
 
 
 router = APIRouter(
@@ -231,3 +291,74 @@ def list_linked_materials(
             }
         )
     return {"items": items}
+
+
+@router.post("/{feature_id}/decisions", response_model=DecisionOut, status_code=201)
+def create_decision(
+    feature_id: str,
+    body: DecisionCreate,
+    project_id: str = Depends(check_project),
+    db: Session = Depends(get_db),
+) -> Decision:
+    """결정을 새로 기록한다. 이전 결정은 그대로 남고, 시각과 decision_no는 서버가 정한다."""
+    require_feature(db, project_id, feature_id)
+    text = body.body.strip()
+    author = body.author_display_name.strip()
+    if not 1 <= len(text) <= BODY_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "body_invalid", f"결정 내용은 1~{BODY_MAX}자로 입력하세요."
+            ),
+        )
+    if not 1 <= len(author) <= AUTHOR_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "author_invalid", f"작성자 표시명은 1~{AUTHOR_MAX}자로 입력하세요."
+            ),
+        )
+    for _ in range(3):  # 같은 기능에 동시에 저장되면 decision_no가 겹칠 수 있어 다시 시도한다
+        last_no = db.scalar(
+            select(func.max(Decision.decision_no)).where(
+                Decision.feature_id == feature_id
+            )
+        )
+        decision = Decision(
+            decision_id=str(uuid4()),
+            feature_id=feature_id,
+            project_id=project_id,
+            body=text,
+            author_display_name=author,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            decision_no=(last_no or 0) + 1,
+        )
+        db.add(decision)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            continue
+        db.refresh(decision)
+        return decision
+    raise HTTPException(
+        status_code=409,
+        detail=error_detail("decision_conflict", "다른 저장과 겹쳤습니다. 다시 시도하세요."),
+    )
+
+
+@router.get("/{feature_id}/decisions", response_model=DecisionList)
+def list_decisions(
+    feature_id: str,
+    project_id: str = Depends(check_project),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    require_feature(db, project_id, feature_id)
+    items = list(
+        db.scalars(
+            select(Decision)
+            .where(Decision.feature_id == feature_id)
+            .order_by(Decision.decision_no.desc())
+        ).all()
+    )
+    return {"current": items[0] if items else None, "items": items}
