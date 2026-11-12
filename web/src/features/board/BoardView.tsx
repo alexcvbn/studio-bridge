@@ -8,7 +8,7 @@ import {
   type NodeChange,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { addCard, getBoardSync, removeCard, type SyncStatus } from './boardSync'
+import { addCard, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
 import { fetchTargets, type TargetInfo } from './targetsApi'
 import type { BoardCard, CardKind } from './types'
 
@@ -134,12 +134,8 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
     // 이동한 카드의 위치만 공유 상태에 반영한다.
     for (const change of changes) {
       if (change.type !== 'position' || !change.position) continue
-      const { cards, removedCardIds } = getBoardSync()
-      const card = cards.get(change.id)
-      // 제거된 카드의 이동 이벤트는 무시한다.
-      if (card && !removedCardIds.has(change.id)) {
-        cards.set(change.id, { ...card, position: change.position })
-      }
+      // 같은 위치이거나 제거된 카드의 이동은 공유 상태에 쓰지 않는다.
+      moveCard(change.id, change.position)
     }
   }, [])
 

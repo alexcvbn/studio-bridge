@@ -50,3 +50,13 @@ const [openFeatureId, setOpenFeatureId] = useState<string | null>(null)
 ```
 - C의 `FeatureView`는 이미 `openFeatureId`를 받는다. 기능 카드의 `target_id`가 상세의 기능 ID와 같다.
 - `onOpenFeature(featureId)`: 보드에서 기능 카드를 선택하고 "기능 열기"를 누르면 호출된다.
+
+## 공유 규칙 (05회차)
+- 이동은 `moveCard(cardId, position)`로 해당 카드의 `position`만 쓴다. 위치가 그대로이거나 제거된 카드면 아무것도 쓰지 않는다.
+- 제거는 `cards`에서 지우고 `removedCardIds`에 기록한다. 제거된 ID가 `cards`에 다시 나타나면(늦은 이동 이벤트) 접속한 클라이언트가 바로 지운다.
+- 새 카드는 항상 새 `card_id`를 만든다. 제거된 ID는 다시 쓰지 않는다.
+- 공유 상태가 바뀌면 화면 노드의 위치만 갱신한다. 화면 변경은 공유 상태에서만 일어나므로 서로 반복해서 쓰지 않는다.
+
+## 두 브라우저로 확인하는 방법
+같은 PC의 같은 브라우저 탭 두 개는 서버를 거치지 않고도 서로 보이므로 증거가 되지 않는다. 서로 다른 브라우저(또는 다른 프로필·PC)로 `http://localhost:5173`을 열고 보드에서 추가 → 이동 → 제거를 각각 해 본다.
+
