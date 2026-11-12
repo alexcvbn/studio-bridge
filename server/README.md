@@ -52,6 +52,40 @@ uv run python -c "from app.db import DATABASE_PATH; print(DATABASE_PATH)"
 - POST /api/projects/studio-bridge/materials/collect: 자료 수신·저장
 - GET /api/projects/studio-bridge/materials: 자료 목록
 - GET /api/projects/studio-bridge/materials/{material_id}: 자료 원문 조회
+- PUT /api/projects/{project_id}/features/{feature_id}/materials/{material_id}: 자료를 기능에 연결
+- GET /api/projects/{project_id}/features/{feature_id}/materials: 기능에 연결된 자료 목록
+- GET /api/projects/{project_id}/context?source_uid=...: Studio 스크립트의 자료·연결 기능·현재 결정 (04회차 #13)
+
+## 문맥 조회 (04회차 #13, C·D와 맞출 응답 모양)
+
+`source_uid`만으로 찾는다. 이름·경로로 찾지 않는다.
+
+```json
+{
+  "source_uid": "demo-boss-ai",
+  "material": {
+    "material_id": "...",
+    "name": "BossAI",
+    "source_path": "ServerScriptService.BossAI",
+    "script_type": "Script",
+    "received_at": "..."
+  },
+  "features": [
+    { "feature_id": "...", "title": "보스 2페이즈", "status": "todo", "assignee": null, "current_decision": null }
+  ]
+}
+```
+
+| 상황 | 응답 |
+|---|---|
+| 아직 받은 적 없는 source_uid | 200, `material: null`, `features: []` |
+| 받았지만 연결된 기능 없음 | 200, `material` 있음, `features: []` |
+| 여러 기능에 연결 | 200, 연결한 순서대로 모두 |
+| 결정이 없는 기능 | `current_decision: null` (결정 저장은 05회차 C. 생기면 가장 큰 decision_no의 `body`·`author_display_name`·`created_at`) |
+| source_uid 빠짐 | 422 (FastAPI 기본 detail 배열) |
+| source_uid가 빈 값 | 422 `source_uid_required` |
+| 다른 프로젝트 | 403 `project_forbidden` |
+| 서버 꺼짐·오류 | 연결 실패 또는 5xx. 200의 "없음"과 다르게 표시해야 한다 |
 
 ## 통합 검증 방법
 
