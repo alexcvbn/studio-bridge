@@ -3,7 +3,8 @@
 -- 서버 계약: POST {서버}/api/projects/studio-bridge/materials/collect
 --   보냄: source_uid, request_id, name, source_path, script_type, raw_code
 --   받음: material_id, snapshot_id, deduplicated
--- 이번 범위에서 만들지 않는 것: 자동 전송 감시, 게임 값 변경, 코드 요약, 문맥 조회.
+-- 04회차 #13: 같은 source_uid를 가진 스크립트(복제본)가 있으면 전송을 멈춘다.
+-- 이번 범위에서 만들지 않는 것: 자동 전송 감시, 게임 값 변경, 코드 요약, 문맥 조회 표시(05회차), 복제본 새 ID 부여(07회차).
 
 local HttpService = game:GetService("HttpService")
 local Selection = game:GetService("Selection")
@@ -35,7 +36,7 @@ sendToolbarButton.ClickableWhenViewportHidden = true
 
 local widget = plugin:CreateDockWidgetPluginGui(
 	"StudioBridgePanel",
-	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 340, 260, 280, 220)
+	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 340, 300, 280, 260)
 )
 widget.Title = "Studio Bridge"
 
@@ -106,7 +107,7 @@ local retryButton = makeButton("다시 시도 (같은 요청)", 4)
 retryButton.BackgroundColor3 = Color3.fromRGB(110, 110, 110)
 retryButton.Visible = false
 
-local statusLabel = makeLabel("스크립트 하나를 선택하고 '코드 보내기'를 누르세요.", 5, 110)
+local statusLabel = makeLabel("스크립트 하나를 선택하고 '코드 보내기'를 누르세요.", 5, 150)
 
 -- ---------- 상태 ----------
 local sending = false
@@ -185,6 +186,36 @@ local function ensureSourceUid(target: LuaSourceContainer): string
 		ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 	end
 	return uid
+end
+
+-- 같은 source_uid를 가진 다른 스크립트를 찾는다. (04회차 #13)
+-- 스크립트를 복제하면 attribute도 복사되므로, 서로 다른 스크립트가 같은 자료로 섞일 수 있다.
+-- 찾으면 전송을 멈추고 알린다. 원본 ID를 자동으로 바꾸지 않는다. (복제본 새 ID 부여는 07회차)
+local function findDuplicates(target: LuaSourceContainer): { string }
+	local uid = target:GetAttribute(UID_ATTRIBUTE)
+	if type(uid) ~= "string" or uid == "" then
+		return {} -- 처음 보내는 스크립트는 새 UUID를 받으므로 겹치지 않는다.
+	end
+	local paths = {}
+	for _, service in game:GetChildren() do
+		-- 일부 서비스는 플러그인이 읽을 수 없어 오류가 난다. 그 서비스만 건너뛴다.
+		local ok, descendants = pcall(function()
+			return service:GetDescendants()
+		end)
+		if ok then
+			for _, item in descendants do
+				if item ~= target then
+					local readOk, other = pcall(function()
+						return item:IsA("LuaSourceContainer") and item:GetAttribute(UID_ATTRIBUTE)
+					end)
+					if readOk and other == uid then
+						table.insert(paths, item:GetFullName())
+					end
+				end
+			end
+		end
+	end
+	return paths
 end
 
 local function buildPayload(target: LuaSourceContainer): Payload
@@ -282,6 +313,16 @@ local function sendSelected()
 	local target, problem = pickScript()
 	if target == nil then
 		setStatus(problem or "선택을 확인하세요.", "fail")
+		return
+	end
+	local duplicates = findDuplicates(target)
+	if #duplicates > 0 then
+		local shown = table.concat(duplicates, "\n", 1, math.min(#duplicates, 3))
+		local more = if #duplicates > 3 then `\n외 {#duplicates - 3}개` else ""
+		setStatus(
+			`전송 중단: 같은 source_uid를 가진 스크립트가 {#duplicates}개 더 있습니다. 복제본일 수 있습니다.\n선택: {target:GetFullName()}\n같은 ID: {shown}{more}\n복제본의 attribute {UID_ATTRIBUTE}를 지운 뒤 다시 보내세요.`,
+			"fail"
+		)
 		return
 	end
 	-- 새 전송은 새 request_id를 쓴다. 이전 실패 요청은 버린다.
