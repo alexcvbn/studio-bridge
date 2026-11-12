@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ApiError, createFeature, fetchFeature, fetchFeatures } from './featuresApi'
-import type { Feature, FeatureStatus } from './featuresApi'
+import {
+  ApiError,
+  createFeature,
+  fetchFeature,
+  fetchFeatures,
+  fetchLinkedMaterials,
+} from './featuresApi'
+import type { Feature, FeatureStatus, LinkedMaterial } from './featuresApi'
 
 export type { Feature, FeatureStatus } from './featuresApi'
 
@@ -17,6 +23,13 @@ interface DetailResult {
   feature: Feature | null
   message: string
   status: number | null
+}
+
+interface LinkedResult {
+  id: string
+  items: LinkedMaterial[]
+  message: string
+  failed: boolean
 }
 
 const MAX_TITLE = 100
@@ -41,6 +54,8 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
   const activeId = openFeatureId !== undefined ? openFeatureId : selectedId
   const [detailResult, setDetailResult] = useState<DetailResult | null>(null)
   const [detailReload, setDetailReload] = useState(0)
+  const [linkedResult, setLinkedResult] = useState<LinkedResult | null>(null)
+  const [linkedReload, setLinkedReload] = useState(0)
 
   // 목록: 서버 기준으로 불러온다. 생성 뒤에도 같은 방식으로 다시 불러온다.
   useEffect(() => {
@@ -85,6 +100,38 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
     }
   }, [activeId, detailReload])
 
+  // 연결 자료: 선택한 기능이 바뀌면 이전 요청의 응답은 버린다
+  useEffect(() => {
+    if (activeId === null) return
+    let cancelled = false
+    fetchLinkedMaterials(activeId)
+      .then((items) => {
+        if (cancelled) return
+        setLinkedResult({ id: activeId, items, message: '', failed: false })
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setLinkedResult({
+          id: activeId,
+          items: [],
+          message: e instanceof Error ? e.message : '불러오지 못했습니다.',
+          failed: true,
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, linkedReload])
+
+  const linkedState =
+    activeId === null
+      ? 'idle'
+      : linkedResult === null || linkedResult.id !== activeId
+        ? 'loading'
+        : linkedResult.failed
+          ? 'error'
+          : 'ready'
+
   const detailState =
     activeId === null
       ? 'idle'
@@ -108,6 +155,11 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
   function retryDetail() {
     setDetailResult(null)
     setDetailReload((k) => k + 1)
+  }
+
+  function reloadLinked() {
+    setLinkedResult(null)
+    setLinkedReload((k) => k + 1)
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -244,8 +296,43 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
               <dd>{STATUS_LABEL[detailResult.feature.status]}</dd>
               <dt>담당자</dt>
               <dd>{detailResult.feature.assignee ?? '미지정'}</dd>
-              <dt>연결 자료 / 결정</dt>
-              <dd>아직 연결되지 않았습니다. (이번 회차 범위 아님)</dd>
+              <dt>연결 자료</dt>
+              <dd>
+                {linkedState === 'loading' && <p>연결 자료를 불러오는 중...</p>}
+                {linkedState === 'error' && linkedResult !== null && (
+                  <div role="alert">
+                    <p style={{ color: '#c0392b' }}>
+                      연결 자료를 불러오지 못했습니다. {linkedResult.message}
+                    </p>
+                    <button type="button" onClick={reloadLinked}>
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {linkedState === 'ready' && linkedResult !== null && (
+                  <>
+                    {linkedResult.items.length === 0 ? (
+                      <p>아직 연결된 자료가 없습니다.</p>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0 }}>
+                        {linkedResult.items.map((m) => (
+                          <li key={m.material_id}>
+                            <b>{m.name}</b>{' '}
+                            <small>
+                              {m.source_path} · {m.script_type} · {m.material_id.slice(0, 8)}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <button type="button" onClick={reloadLinked}>
+                      연결 목록 새로고침
+                    </button>
+                  </>
+                )}
+              </dd>
+              <dt>결정</dt>
+              <dd>아직 없습니다. (이번 회차 범위 아님)</dd>
             </dl>
           )}
         </div>
