@@ -1,12 +1,13 @@
-"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02회차 #8)."""
+"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02회차 #8, 04회차 #16)."""
 
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import ForeignKey, String, Text, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.db import FIXED_PROJECT_ID, Base, get_db
@@ -86,26 +87,84 @@ def snapshot_json(s: Snapshot) -> dict:
     }
 
 
-@router.post("/collect", status_code=201)
-def collect(body: CollectIn, db: Session = Depends(get_db)):
-    if len(body.raw_code.encode("utf-8")) > MAX_RAW_BYTES:
-        raise error(413, "raw_code_too_large", "코드 원문이 256KiB를 넘습니다")
+def find_retry(db: Session, body: CollectIn) -> dict | None:
+    """같은 request_id로 이미 저장된 수집본이 있으면 그 결과를 돌려준다. (04회차 #16)
 
-    material = db.scalars(select(Material).where(Material.source_uid == body.source_uid)).first()
+    - 처음 보는 request_id면 None (새로 저장하면 됨)
+    - 같은 request_id + 같은 내용이면 이전 결과 그대로 (deduplicated: True)
+    - 같은 request_id + 다른 내용이면 409 오류 (이전 자료는 그대로 둔다)
+    """
+    old = db.scalars(
+        select(Snapshot).where(Snapshot.request_id == body.request_id)
+    ).first()
+    if old is None:
+        return None
+
+    old_material = db.get(Material, old.material_id)
+    same = (
+        old_material.source_uid == body.source_uid
+        and old.name == body.name
+        and old.source_path == body.source_path
+        and old.script_type == body.script_type
+        and old.raw_code == body.raw_code
+    )
+    if not same:
+        raise error(
+            409,
+            "request_id_conflict",
+            "같은 요청 ID로 다른 내용이 이미 저장되어 있습니다",
+        )
+    return {
+        "material_id": old.material_id,
+        "snapshot_id": old.snapshot_id,
+        "deduplicated": True,
+    }
+
+
+def save_new(db: Session, body: CollectIn) -> dict:
+    """처음 받은 요청을 저장한다. 같은 source_uid면 기존 자료에 수집본만 추가한다."""
+    material = db.scalars(
+        select(Material).where(Material.source_uid == body.source_uid)
+    ).first()
     if material is None:
         material = Material(project_id=FIXED_PROJECT_ID, source_uid=body.source_uid)
         db.add(material)
         db.flush()  # material_id를 지금 만들어 받기
 
-    snapshot = Snapshot(material_id=material.material_id, **body.model_dump(exclude={"source_uid"}))
+    snapshot = Snapshot(
+        material_id=material.material_id, **body.model_dump(exclude={"source_uid"})
+    )
     db.add(snapshot)
     db.commit()
-    # 같은 request_id 재시도(200)·충돌(409) 처리는 04회차 #16에서 추가
     return {
         "material_id": material.material_id,
         "snapshot_id": snapshot.snapshot_id,
         "deduplicated": False,
     }
+
+
+@router.post("/collect", status_code=201)
+def collect(body: CollectIn, response: Response, db: Session = Depends(get_db)):
+    if len(body.raw_code.encode("utf-8")) > MAX_RAW_BYTES:
+        raise error(413, "raw_code_too_large", "코드 원문이 256KiB를 넘습니다")
+
+    # 두 번까지 시도한다. 거의 동시에 온 다른 요청이 먼저 저장하면
+    # DB 고유 제약(request_id, source_uid) 때문에 첫 저장이 IntegrityError로 막힌다.
+    # 그때는 되돌린(rollback) 뒤, 먼저 저장된 내용을 보고 다시 판단한다.
+    for attempt in range(2):
+        # 1) 이미 받은 요청을 다시 보낸 것이면 이전 결과를 200으로 돌려준다
+        retry = find_retry(db, body)
+        if retry is not None:
+            response.status_code = 200
+            return retry
+        # 2) 처음 받은 요청이면 저장하고 201
+        try:
+            return save_new(db, body)
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise
+    raise RuntimeError("unreachable")
 
 
 @router.get("")
