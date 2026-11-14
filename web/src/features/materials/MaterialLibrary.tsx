@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { addMaterialCard } from '../board'
+import { MaterialActions } from './MaterialActions'
 import { fetchMaterial, fetchMaterials, type MaterialDetail, type MaterialSummary } from './materialsApi'
 
-export function MaterialLibrary() {
+interface MaterialLibraryProps {
+  /** "보드에 추가"를 누르면 호출된다. App.tsx가 넘기지 않으면 B의 addMaterialCard를 바로 쓴다. */
+  onAddMaterial?: (materialId: string) => void
+}
+
+export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLibraryProps = {}) {
   // 목록 상태: 불러오는 중 / 실패 메시지 / 받은 목록
   const [items, setItems] = useState<MaterialSummary[]>([])
   const [listLoading, setListLoading] = useState(true)
@@ -98,11 +105,17 @@ export function MaterialLibrary() {
         {detail && (
           <>
             <h3>{detail.current_snapshot.name}</h3>
+            <MaterialActions
+              key={detail.material_id}
+              materialId={detail.material_id}
+              materialName={detail.current_snapshot.name}
+              onAddMaterial={onAddMaterial}
+            />
             <p>
               {detail.current_snapshot.source_path} · {detail.current_snapshot.script_type} · 받은 시각{' '}
               {new Date(detail.current_snapshot.received_at).toLocaleString()}
             </p>
-                        <p style={{ fontSize: 12, color: '#666' }}>
+            <p style={{ fontSize: 12, color: '#666' }}>
               material_id {detail.material_id} · request_id {detail.current_snapshot.request_id} · {detail.current_snapshot.raw_code.split('\n').length}줄 ·{' '}
               {detail.current_snapshot.raw_code.length}자
             </p>
