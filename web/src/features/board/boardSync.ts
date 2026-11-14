@@ -31,6 +31,15 @@ function connect(): Shared {
   const removedCardIds = doc.getMap<boolean>('removedCardIds')
   const provider = new WebsocketProvider(SYNC_URL, ROOM, doc)
 
+  // 제거된 카드에 늦게 도착한 이동이 문서에 카드를 다시 넣어도 바로 지운다.
+  // 이미 지운 항목을 다시 지우는 것은 변화가 없어 다른 클라이언트와 무한히 주고받지 않는다.
+  const purgeRemoved = () => {
+    const stale = [...cards.keys()].filter((id) => removedCardIds.has(id))
+    if (stale.length > 0) doc.transact(() => stale.forEach((id) => cards.delete(id)))
+  }
+  cards.observe(purgeRemoved)
+  removedCardIds.observe(purgeRemoved)
+
   let status: SyncStatus = 'connecting'
   const listeners = new Set<(s: SyncStatus) => void>()
   provider.on('status', ({ status: next }: { status: SyncStatus }) => {
@@ -69,10 +78,12 @@ if (import.meta.hot) {
 
 // 항상 새 card_id를 만든다. 같은 자료를 다시 추가하면 같은 target_id의 새 카드가 생긴다.
 export function addCard(kind: CardKind, targetId: string): BoardCard {
-  const { cards } = getBoardSync()
+  const { cards, removedCardIds } = getBoardSync()
   const n = cards.size
+  let cardId = crypto.randomUUID()
+  while (removedCardIds.has(cardId)) cardId = crypto.randomUUID()
   const card: BoardCard = {
-    card_id: crypto.randomUUID(),
+    card_id: cardId,
     kind,
     target_id: targetId,
     position: {
@@ -82,6 +93,15 @@ export function addCard(kind: CardKind, targetId: string): BoardCard {
   }
   cards.set(card.card_id, card)
   return card
+}
+
+// 해당 카드의 position만 갱신한다. 없는·제거된 카드이거나 위치가 그대로면 아무것도 쓰지 않는다.
+export function moveCard(cardId: string, position: { x: number; y: number }): void {
+  const { cards, removedCardIds } = getBoardSync()
+  const card = cards.get(cardId)
+  if (!card || removedCardIds.has(cardId)) return
+  if (card.position.x === position.x && card.position.y === position.y) return
+  cards.set(cardId, { ...card, position })
 }
 
 // 보드 상태에서만 제거한다. 자료·기능·결정 등 서버 데이터는 건드리지 않는다.
