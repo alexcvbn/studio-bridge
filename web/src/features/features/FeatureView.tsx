@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ApiError,
+  createDecision,
   createFeature,
+  fetchDecisions,
   fetchFeature,
   fetchFeatures,
   fetchLinkedMaterials,
 } from './featuresApi'
-import type { Feature, FeatureStatus, LinkedMaterial } from './featuresApi'
+import type {
+  DecisionList,
+  Feature,
+  FeatureStatus,
+  LinkedMaterial,
+} from './featuresApi'
 
 export type { Feature, FeatureStatus } from './featuresApi'
 
@@ -33,6 +40,27 @@ interface LinkedResult {
 }
 
 const MAX_TITLE = 100
+const BODY_MAX = 2000
+const AUTHOR_MAX = 30
+
+interface DecisionsResult {
+  id: string
+  data: DecisionList | null
+  message: string
+}
+
+interface Draft {
+  body: string
+  author: string
+}
+
+interface SubmitState {
+  id: string
+  error: string
+  notice: string
+}
+
+const formatTime = (iso: string) => new Date(iso).toLocaleString('ko-KR')
 const STATUS_LABEL: Record<FeatureStatus, string> = {
   todo: '대기',
   doing: '진행 중',
@@ -56,6 +84,12 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
   const [detailReload, setDetailReload] = useState(0)
   const [linkedResult, setLinkedResult] = useState<LinkedResult | null>(null)
   const [linkedReload, setLinkedReload] = useState(0)
+  const [decisionsResult, setDecisionsResult] = useState<DecisionsResult | null>(null)
+  const [decisionsReload, setDecisionsReload] = useState(0)
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({}) // 기능마다 따로 보관
+  const [lastAuthor, setLastAuthor] = useState('')
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [submitState, setSubmitState] = useState<SubmitState | null>(null)
 
   // 목록: 서버 기준으로 불러온다. 생성 뒤에도 같은 방식으로 다시 불러온다.
   useEffect(() => {
@@ -132,6 +166,43 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
           ? 'error'
           : 'ready'
 
+  // 결정: 선택한 기능이 바뀌면 이전 요청의 응답은 버린다
+  useEffect(() => {
+    if (activeId === null) return
+    let cancelled = false
+    fetchDecisions(activeId)
+      .then((data) => {
+        if (cancelled) return
+        setDecisionsResult({ id: activeId, data, message: '' })
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setDecisionsResult({
+          id: activeId,
+          data: null,
+          message: e instanceof Error ? e.message : '불러오지 못했습니다.',
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeId, decisionsReload])
+
+  const decisionsState =
+    activeId === null
+      ? 'idle'
+      : decisionsResult === null || decisionsResult.id !== activeId
+        ? 'loading'
+        : decisionsResult.data
+          ? 'ready'
+          : 'error'
+  const draft: Draft = (activeId !== null ? drafts[activeId] : undefined) ?? {
+    body: '',
+    author: lastAuthor,
+  }
+  const saving = savingId !== null
+  const activeSubmit = submitState !== null && submitState.id === activeId ? submitState : null
+
   const detailState =
     activeId === null
       ? 'idle'
@@ -160,6 +231,66 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
   function reloadLinked() {
     setLinkedResult(null)
     setLinkedReload((k) => k + 1)
+  }
+
+  function reloadDecisions() {
+    setDecisionsResult(null)
+    setDecisionsReload((k) => k + 1)
+  }
+
+  function updateDraft(patch: Partial<Draft>) {
+    if (activeId === null) return
+    const id = activeId
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { body: '', author: lastAuthor }), ...patch },
+    }))
+  }
+
+  async function handleDecisionSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (activeId === null || saving) return
+    const featureId = activeId
+    const body = draft.body.trim()
+    const author = draft.author.trim()
+    if (body.length === 0 || body.length > BODY_MAX) {
+      setSubmitState({
+        id: featureId,
+        error: body.length === 0 ? '결정 내용을 입력하세요.' : `결정 내용은 ${BODY_MAX}자 이하로 입력하세요.`,
+        notice: '',
+      })
+      return
+    }
+    if (author.length === 0 || author.length > AUTHOR_MAX) {
+      setSubmitState({
+        id: featureId,
+        error: author.length === 0 ? '작성자 표시명을 입력하세요.' : `작성자 표시명은 ${AUTHOR_MAX}자 이하로 입력하세요.`,
+        notice: '',
+      })
+      return
+    }
+    setSavingId(featureId)
+    setSubmitState({ id: featureId, error: '', notice: '' })
+    try {
+      const created = await createDecision(featureId, body, author)
+      setDrafts((prev) => ({ ...prev, [featureId]: { body: '', author } }))
+      setLastAuthor(author)
+      setSubmitState({
+        id: featureId,
+        error: '',
+        notice: `결정 #${created.decision_no}을 저장했습니다.`,
+      })
+      setDecisionsReload((k) => k + 1) // 서버 기준으로 다시 조회
+    } catch (err) {
+      // 저장에 실패하면 입력한 내용을 그대로 남긴다
+      setSubmitState({
+        id: featureId,
+        error: err instanceof Error ? err.message : '저장에 실패했습니다.',
+        notice: '',
+      })
+    } finally {
+      setSavingId(null)
+    }
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -331,8 +462,89 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
                   </>
                 )}
               </dd>
-              <dt>결정</dt>
-              <dd>아직 없습니다. (이번 회차 범위 아님)</dd>
+              <dt>현재 결정</dt>
+              <dd>
+                {decisionsState === 'loading' && <p>결정을 불러오는 중...</p>}
+                {decisionsState === 'error' && decisionsResult !== null && (
+                  <div role="alert">
+                    <p style={{ color: '#c0392b' }}>
+                      결정을 불러오지 못했습니다. {decisionsResult.message}
+                    </p>
+                    <button type="button" onClick={reloadDecisions}>
+                      다시 시도
+                    </button>
+                  </div>
+                )}
+                {decisionsState === 'ready' && decisionsResult?.data && (
+                  <>
+                    {decisionsResult.data.current === null ? (
+                      <p>아직 결정이 없습니다.</p>
+                    ) : (
+                      <div>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{decisionsResult.data.current.body}</p>
+                        <small>
+                          #{decisionsResult.data.current.decision_no} · 표시명:{' '}
+                          {decisionsResult.data.current.author_display_name} (직접 입력한 이름이며
+                          로그인 계정이 아닙니다) · {formatTime(decisionsResult.data.current.created_at)}
+                        </small>
+                      </div>
+                    )}
+                  </>
+                )}
+              </dd>
+              <dt>이전 결정</dt>
+              <dd>
+                {decisionsState === 'ready' && decisionsResult?.data && (
+                  <>
+                    {decisionsResult.data.items.length <= 1 ? (
+                      <p>이전 결정이 없습니다.</p>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0 }}>
+                        {decisionsResult.data.items.slice(1).map((d) => (
+                          <li key={d.decision_id}>
+                            <span style={{ whiteSpace: 'pre-wrap' }}>{d.body}</span>{' '}
+                            <small>
+                              #{d.decision_no} · {d.author_display_name} · {formatTime(d.created_at)}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </dd>
+              <dt>결정 기록하기</dt>
+              <dd>
+                <form onSubmit={handleDecisionSubmit}>
+                  <p>
+                    <small>저장하면 새 결정으로 기록되고, 이전 결정은 지워지지 않습니다.</small>
+                  </p>
+                  <textarea
+                    aria-label="결정 내용"
+                    placeholder="결정 내용과 이유 (예: 체력 5000. 이유: 첫 테스트의 전투 시간을 맞추기 위해서.)"
+                    value={draft.body}
+                    onChange={(e) => updateDraft({ body: e.target.value })}
+                    disabled={saving}
+                    rows={4}
+                    style={{ width: '100%' }}
+                  />
+                  <input
+                    aria-label="작성자 표시명"
+                    placeholder="작성자 표시명 (직접 입력, 로그인 계정 아님)"
+                    value={draft.author}
+                    onChange={(e) => updateDraft({ author: e.target.value })}
+                    disabled={saving}
+                    style={{ width: '100%' }}
+                  />
+                  <button type="submit" disabled={saving}>
+                    {saving ? '저장 중...' : '결정 저장'}
+                  </button>
+                  <div role="alert" style={{ color: '#c0392b' }}>
+                    {activeSubmit?.error}
+                  </div>
+                  <div style={{ color: '#17653a' }}>{activeSubmit?.notice}</div>
+                </form>
+              </dd>
             </dl>
           )}
         </div>
