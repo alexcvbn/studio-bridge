@@ -2,9 +2,9 @@
   "name": "sync",
   "private": true,
   "version": "0.0.0",
-  "description": "보드 카드 위치 실시간 동기화 서버 (y-websocket)",
+  "description": "보드 카드·메모 실시간 동기화·저장 서버 (y-websocket + y-leveldb)",
   "scripts": {
-    "start": "y-websocket"
+    "start": "node start.cjs"
   },
   "dependencies": {
     "y-websocket": "2.1.0",

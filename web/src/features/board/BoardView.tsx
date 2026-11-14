@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { addCard, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
+import { MemoPanel } from './MemoPanel'
 import { fetchTargets, type TargetInfo } from './targetsApi'
 import type { BoardCard, CardKind } from './types'
 
@@ -212,16 +213,19 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
           </button>
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 400 }}>
-        <ReactFlow
-          nodes={nodesWithLabels}
-          edges={[]}
-          onNodesChange={handleNodesChange}
-          defaultViewport={{ x: 20, y: 20, zoom: 1 }}
-        >
-          <Background />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+      <div style={{ flex: 1, minHeight: 400, display: 'flex', gap: 12 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <ReactFlow
+            nodes={nodesWithLabels}
+            edges={[]}
+            onNodesChange={handleNodesChange}
+            defaultViewport={{ x: 20, y: 20, zoom: 1 }}
+          >
+            <Background />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </div>
+        <MemoPanel status={status} />
       </div>
     </section>
   )

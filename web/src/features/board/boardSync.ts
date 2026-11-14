@@ -15,6 +15,8 @@ export interface BoardSync {
   cards: Y.Map<BoardCard>
   // 제거된 card_id. 제거 뒤 늦게 도착한 이동이 카드를 되살리지 못하게 한다.
   removedCardIds: Y.Map<boolean>
+  // 공동 메모. 카드와 같은 문서에 있어 같은 서버에 함께 저장된다.
+  memo: Y.Text
   subscribeStatus: (listener: (status: SyncStatus) => void) => () => void
 }
 
@@ -29,6 +31,7 @@ function connect(): Shared {
   const doc = new Y.Doc()
   const cards = doc.getMap<BoardCard>('cards')
   const removedCardIds = doc.getMap<boolean>('removedCardIds')
+  const memo = doc.getText('memo')
   const provider = new WebsocketProvider(SYNC_URL, ROOM, doc)
 
   // 제거된 카드에 늦게 도착한 이동이 문서에 카드를 다시 넣어도 바로 지운다.
@@ -50,6 +53,7 @@ function connect(): Shared {
   return {
     cards,
     removedCardIds,
+    memo,
     subscribeStatus: (listener) => {
       listeners.add(listener)
       listener(status)
@@ -102,6 +106,31 @@ export function moveCard(cardId: string, position: { x: number; y: number }): vo
   if (!card || removedCardIds.has(cardId)) return
   if (card.position.x === position.x && card.position.y === position.y) return
   cards.set(cardId, { ...card, position })
+}
+
+// 이 브라우저에서 직접 입력한 변경의 출처 표시. 메모 화면이 내 입력과 남의 입력을 구분한다.
+export const LOCAL_MEMO_ORIGIN = 'local-memo-edit'
+
+// 입력창의 새 내용을 메모에 반영한다. 통째로 바꾸지 않고 앞뒤가 같은 부분을 빼고 바뀐 부분만
+// 지우고 넣어서, 동시에 쓴 다른 사람의 글이 덮어써지지 않게 한다.
+export function applyMemoEdit(next: string): void {
+  const { memo } = getBoardSync()
+  const prev = memo.toString()
+  if (next === prev) return
+  let start = 0
+  while (start < prev.length && start < next.length && prev[start] === next[start]) start++
+  let endPrev = prev.length
+  let endNext = next.length
+  while (endPrev > start && endNext > start && prev[endPrev - 1] === next[endNext - 1]) {
+    endPrev--
+    endNext--
+  }
+  const apply = () => {
+    if (endPrev > start) memo.delete(start, endPrev - start)
+    if (endNext > start) memo.insert(start, next.slice(start, endNext))
+  }
+  if (memo.doc) memo.doc.transact(apply, LOCAL_MEMO_ORIGIN)
+  else apply()
 }
 
 // 보드 상태에서만 제거한다. 자료·기능·결정 등 서버 데이터는 건드리지 않는다.
