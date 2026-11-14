@@ -23,7 +23,13 @@ export type Snapshot = {
 export type MaterialDetail = {
   material_id: string
   source_uid: string
+  snapshot_count: number // 이 자료에 쌓인 수집본 수 (다시 보내도 이전 원문은 남는다)
   current_snapshot: Snapshot
+}
+
+export type SourceLookup = {
+  source_uid: string
+  material: MaterialDetail | null // 받은 적 없는 source_uid면 null
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -42,4 +48,9 @@ export async function fetchMaterials(): Promise<MaterialSummary[]> {
 
 export function fetchMaterial(materialId: string): Promise<MaterialDetail> {
   return getJson<MaterialDetail>(`${BASE}/${materialId}`)
+}
+
+/** Studio 스크립트의 source_uid로 자료를 찾는다 (05회차 #20). 없으면 material: null */
+export function findBySourceUid(sourceUid: string): Promise<SourceLookup> {
+  return getJson<SourceLookup>(`${BASE}/by-source?source_uid=${encodeURIComponent(sourceUid)}`)
 }
