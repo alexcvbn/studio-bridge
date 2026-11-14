@@ -1,4 +1,4 @@
-"""A 담당: Studio에서 고른 스크립트의 문맥(자료·연결된 기능·현재 결정) 조회 (04회차 #13).
+"""A 담당: Studio에서 고른 스크립트의 문맥(자료·연결된 기능·현재 결정) 조회 (04회차 #13, 05회차 #17).
 
 판별 기준은 source_uid 하나다. 이름·경로는 표시 정보일 뿐 대상을 찾는 데 쓰지 않는다.
 
@@ -6,7 +6,8 @@
 - 아직 받은 적 없는 source_uid: 200, material null, features []
 - 받았지만 연결된 기능 없음: 200, material 있음, features []
 - 여러 기능에 연결: 200, 연결한 순서대로 모두 (하나를 숨기지 않음)
-- 기능마다 current_decision: 결정 기록이 생기기 전(05회차 C)까지는 null
+- 기능마다 current_decision: 가장 큰 decision_no의 결정(decision_no·body·author_display_name·created_at).
+  결정이 하나도 없으면 null. author_display_name은 사용자가 입력한 표시명이며 인증된 신원이 아니다.
 - 서버 실패는 200이 아닌 오류 응답이라 위의 "없음"과 구분된다.
 """
 
@@ -21,6 +22,7 @@ from app.materials import Material, latest_snapshot
 
 
 class DecisionOut(BaseModel):
+    decision_no: int
     body: str
     author_display_name: str
     created_at: str

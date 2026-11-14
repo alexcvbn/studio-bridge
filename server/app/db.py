@@ -1,10 +1,12 @@
+import os
 from pathlib import Path
 
 from sqlalchemy import String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATABASE_PATH = BASE_DIR / "studio_bridge.db"
+# 기본은 server/studio_bridge.db. 검사할 때는 STUDIO_BRIDGE_DB로 임시 DB 파일을 지정해 실제 DB를 건드리지 않는다.
+DATABASE_PATH = Path(os.environ.get("STUDIO_BRIDGE_DB") or BASE_DIR / "studio_bridge.db")
 FIXED_PROJECT_ID = "studio-bridge"
 
 engine = create_engine(

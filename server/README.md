@@ -54,7 +54,7 @@ uv run python -c "from app.db import DATABASE_PATH; print(DATABASE_PATH)"
 - GET /api/projects/studio-bridge/materials/{material_id}: 자료 원문 조회
 - PUT /api/projects/{project_id}/features/{feature_id}/materials/{material_id}: 자료를 기능에 연결
 - GET /api/projects/{project_id}/features/{feature_id}/materials: 기능에 연결된 자료 목록
-- GET /api/projects/{project_id}/context?source_uid=...: Studio 스크립트의 자료·연결 기능·현재 결정 (04회차 #13)
+- GET /api/projects/{project_id}/context?source_uid=...: Studio 스크립트의 자료·연결 기능·현재 결정 (04회차 #13, 05회차 #17)
 
 ## 문맥 조회 (04회차 #13, C·D와 맞출 응답 모양)
 
@@ -71,7 +71,16 @@ uv run python -c "from app.db import DATABASE_PATH; print(DATABASE_PATH)"
     "received_at": "..."
   },
   "features": [
-    { "feature_id": "...", "title": "보스 2페이즈", "status": "todo", "assignee": null, "current_decision": null }
+    {
+      "feature_id": "...", "title": "보스 2페이즈", "status": "todo", "assignee": null,
+      "current_decision": {
+        "decision_no": 1,
+        "body": "체력 5000. 이유: 첫 테스트의 전투 시간을 맞추기 위해서.",
+        "author_display_name": "황재민",
+        "created_at": "2026-11-14T04:25:02.039147+00:00"
+      }
+    },
+    { "feature_id": "...", "title": "보스 등장 연출", "status": "todo", "assignee": null, "current_decision": null }
   ]
 }
 ```
@@ -81,11 +90,30 @@ uv run python -c "from app.db import DATABASE_PATH; print(DATABASE_PATH)"
 | 아직 받은 적 없는 source_uid | 200, `material: null`, `features: []` |
 | 받았지만 연결된 기능 없음 | 200, `material` 있음, `features: []` |
 | 여러 기능에 연결 | 200, 연결한 순서대로 모두 |
-| 결정이 없는 기능 | `current_decision: null` (결정 저장은 05회차 C. 생기면 가장 큰 decision_no의 `body`·`author_display_name`·`created_at`) |
+| 결정이 없는 기능 | `current_decision: null` |
+| 결정이 있는 기능 | 가장 큰 `decision_no`의 `decision_no`·`body`·`author_display_name`·`created_at`. 표시명은 입력값이며 인증된 신원이 아니다 |
 | source_uid 빠짐 | 422 (FastAPI 기본 detail 배열) |
 | source_uid가 빈 값 | 422 `source_uid_required` |
 | 다른 프로젝트 | 403 `project_forbidden` |
 | 서버 꺼짐·오류 | 연결 실패 또는 5xx. 200의 "없음"과 다르게 표시해야 한다 |
+
+## 문맥 조회 검사 (05회차 #17)
+
+실제 DB를 건드리지 않도록 `STUDIO_BRIDGE_DB`로 임시 DB를 지정해 서버를 띄우고, 실제 HTTP로 검사한다. (server 폴더)
+
+```bash
+STUDIO_BRIDGE_DB=/tmp/sb-check.db uv run uvicorn app.main:app --port 8765
+```
+
+다른 터미널에서:
+
+```bash
+uv run python scripts/check_context.py http://127.0.0.1:8765
+```
+
+Windows PowerShell은 `$env:STUDIO_BRIDGE_DB="$env:TEMP\sb-check.db"` 후 같은 명령으로 실행한다.
+미수집·미연결·다중 연결·결정 없음·현재 결정·결정 변경·422·403을 확인하고 `14/14 통과`가 나와야 한다.
+`STUDIO_BRIDGE_DB`를 지정하지 않으면 기본 DB `server/studio_bridge.db`를 쓴다.
 
 ## 통합 검증 방법
 
