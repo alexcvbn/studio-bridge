@@ -1,12 +1,12 @@
-"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02회차 #8, 04회차 #16)."""
+"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02회차 #8, 04회차 #16, 05회차 #20)."""
 
 import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import ForeignKey, String, Text, select
+from sqlalchemy import ForeignKey, String, Text, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -73,6 +73,34 @@ def latest_snapshot(db: Session, material_id: str) -> Snapshot | None:
         .order_by(Snapshot.received_at.desc())
     )
     return db.scalars(query).first()
+
+
+def count_snapshots(db: Session, material_id: str) -> int:
+    """이 자료에 쌓인 수집본 수. 다시 보내면 늘어나고, 이전 원문은 지워지지 않는다."""
+    query = select(func.count()).select_from(Snapshot).where(Snapshot.material_id == material_id)
+    return db.scalar(query) or 0
+
+
+def find_by_source_uid(
+    db: Session, project_id: str, source_uid: str
+) -> tuple[Material, Snapshot] | None:
+    """project_id + source_uid로 자료와 가장 최근 수집본을 찾는다. (05회차 #20)
+
+    - 이름·경로가 아니라 source_uid로만 찾는다. 이름이 같아도 UID가 다르면 다른 자료다.
+    - 다른 프로젝트의 자료는 섞지 않는다.
+    - 받은 적 없는 UID면 None.
+    """
+    material = db.scalars(
+        select(Material).where(
+            Material.project_id == project_id, Material.source_uid == source_uid
+        )
+    ).first()
+    if material is None:
+        return None
+    snapshot = latest_snapshot(db, material.material_id)
+    if snapshot is None:
+        return None
+    return material, snapshot
 
 
 def snapshot_json(s: Snapshot) -> dict:
@@ -187,14 +215,36 @@ def list_materials(db: Session = Depends(get_db)):
     return {"items": items}
 
 
+def material_json(db: Session, m: Material, s: Snapshot) -> dict:
+    return {
+        "material_id": m.material_id,
+        "source_uid": m.source_uid,
+        "snapshot_count": count_snapshots(db, m.material_id),
+        "current_snapshot": snapshot_json(s),
+    }
+
+
+# 주의: "/by-source"는 "/{material_id}"보다 먼저 등록해야 한다.
+# 뒤에 두면 "by-source"를 material_id로 잘못 읽는다.
+@router.get("/by-source")
+def get_material_by_source(
+    source_uid: str = Query(...), db: Session = Depends(get_db)
+):
+    """Studio 스크립트의 source_uid로 자료를 찾는다. 없으면 200 + material null. (05회차 #20)"""
+    source_uid = source_uid.strip()
+    if source_uid == "":
+        raise error(422, "source_uid_required", "source_uid를 입력하세요")
+    found = find_by_source_uid(db, FIXED_PROJECT_ID, source_uid)
+    if found is None:
+        return {"source_uid": source_uid, "material": None}
+    m, s = found
+    return {"source_uid": source_uid, "material": material_json(db, m, s)}
+
+
 @router.get("/{material_id}")
 def get_material(material_id: str, db: Session = Depends(get_db)):
     m = db.get(Material, material_id)
     s = latest_snapshot(db, material_id) if m else None
     if m is None or s is None:
         raise error(404, "material_not_found", "그 자료를 찾을 수 없습니다")
-    return {
-        "material_id": m.material_id,
-        "source_uid": m.source_uid,
-        "current_snapshot": snapshot_json(s),
-    }
+    return material_json(db, m, s)

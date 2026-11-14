@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addMaterialCard } from '../board'
 import { MaterialActions } from './MaterialActions'
+import { SourceUidSearch } from './SourceUidSearch'
 import { fetchMaterial, fetchMaterials, type MaterialDetail, type MaterialSummary } from './materialsApi'
 
 interface MaterialLibraryProps {
@@ -71,6 +72,8 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
             목록을 불러오지 못했습니다: {listError}
           </p>
         )}
+        <SourceUidSearch onFound={(materialId) => void select(materialId)} />
+
         {!listLoading && !listError && items.length === 0 && (
           <p>아직 받은 자료가 없습니다. Studio에서 코드를 보내면 여기에 나타납니다.</p>
         )}
@@ -116,6 +119,8 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
               {new Date(detail.current_snapshot.received_at).toLocaleString()}
             </p>
             <p style={{ fontSize: 12, color: '#666' }}>
+              source_uid {detail.source_uid} · 수집본 {detail.snapshot_count}개
+              <br />
               material_id {detail.material_id} · request_id {detail.current_snapshot.request_id} · {detail.current_snapshot.raw_code.split('\n').length}줄 ·{' '}
               {detail.current_snapshot.raw_code.length}자
             </p>
