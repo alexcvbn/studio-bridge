@@ -8,6 +8,7 @@ import {
   fetchFeature,
   fetchFeatures,
   fetchLinkedMaterials,
+  updateFeature,
 } from './featuresApi'
 import type {
   DecisionList,
@@ -60,6 +61,9 @@ interface SubmitState {
   notice: string
 }
 
+// 담당자로 고를 수 있는 팀원 (서버에는 이름 문자열로 저장)
+const TEAM_MEMBERS = ['황재민', '정승호', '이하영', '이성수']
+
 const formatTime = (iso: string) => new Date(iso).toLocaleString('ko-KR')
 const STATUS_LABEL: Record<FeatureStatus, string> = {
   todo: '대기',
@@ -90,6 +94,8 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
   const [lastAuthor, setLastAuthor] = useState('')
   const [savingId, setSavingId] = useState<string | null>(null)
   const [submitState, setSubmitState] = useState<SubmitState | null>(null)
+  const [metaSavingId, setMetaSavingId] = useState<string | null>(null)
+  const [metaState, setMetaState] = useState<SubmitState | null>(null)
 
   // 목록: 서버 기준으로 불러온다. 생성 뒤에도 같은 방식으로 다시 불러온다.
   useEffect(() => {
@@ -247,6 +253,29 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
     }))
   }
 
+  // 상태·담당자 변경: 성공하면 서버 기준으로 상세·목록을 다시 조회한다.
+  // 실패하면 화면 값은 바뀌지 않고(서버 값 그대로) 오류만 보여 준다.
+  async function changeMeta(patch: { status?: FeatureStatus; assignee?: string | null }) {
+    if (activeId === null || metaSavingId !== null) return
+    const featureId = activeId
+    setMetaSavingId(featureId)
+    setMetaState({ id: featureId, error: '', notice: '' })
+    try {
+      await updateFeature(featureId, patch)
+      setMetaState({ id: featureId, error: '', notice: '상태·담당자를 저장했습니다.' })
+      setDetailReload((k) => k + 1)
+      setListReload((k) => k + 1)
+    } catch (err) {
+      setMetaState({
+        id: featureId,
+        error: err instanceof Error ? err.message : '저장에 실패했습니다.',
+        notice: '',
+      })
+    } finally {
+      setMetaSavingId(null)
+    }
+  }
+
   async function handleDecisionSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (activeId === null || saving) return
@@ -281,6 +310,7 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
         notice: `결정 #${created.decision_no}을 저장했습니다.`,
       })
       setDecisionsReload((k) => k + 1) // 서버 기준으로 다시 조회
+      setDetailReload((k) => k + 1) // 상세(상태·담당자)도 함께 다시 조회
     } catch (err) {
       // 저장에 실패하면 입력한 내용을 그대로 남긴다
       setSubmitState({
@@ -424,9 +454,47 @@ export function FeatureView({ openFeatureId, onSelectFeature }: FeatureViewProps
                 <code>{detailResult.feature.feature_id}</code>
               </dd>
               <dt>상태</dt>
-              <dd>{STATUS_LABEL[detailResult.feature.status]}</dd>
+              <dd>
+                <select
+                  aria-label="상태"
+                  value={detailResult.feature.status}
+                  disabled={metaSavingId !== null}
+                  onChange={(e) => changeMeta({ status: e.target.value as FeatureStatus })}
+                >
+                  {(Object.keys(STATUS_LABEL) as FeatureStatus[]).map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </dd>
               <dt>담당자</dt>
-              <dd>{detailResult.feature.assignee ?? '미지정'}</dd>
+              <dd>
+                <select
+                  aria-label="담당자"
+                  value={detailResult.feature.assignee ?? ''}
+                  disabled={metaSavingId !== null}
+                  onChange={(e) => changeMeta({ assignee: e.target.value === '' ? null : e.target.value })}
+                >
+                  <option value="">미지정</option>
+                  {detailResult.feature.assignee !== null &&
+                    !TEAM_MEMBERS.includes(detailResult.feature.assignee) && (
+                      <option value={detailResult.feature.assignee}>{detailResult.feature.assignee}</option>
+                    )}
+                  {TEAM_MEMBERS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                {metaSavingId !== null && metaSavingId === activeId && <small> 저장 중...</small>}
+                <div role="alert" style={{ color: '#c0392b' }}>
+                  {metaState !== null && metaState.id === activeId ? metaState.error : ''}
+                </div>
+                <div style={{ color: '#17653a' }}>
+                  {metaState !== null && metaState.id === activeId ? metaState.notice : ''}
+                </div>
+              </dd>
               <dt>연결 자료</dt>
               <dd>
                 {linkedState === 'loading' && <p>연결 자료를 불러오는 중...</p>}

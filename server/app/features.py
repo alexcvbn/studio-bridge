@@ -13,6 +13,8 @@ from app.materials import Material, latest_snapshot
 TITLE_MAX = 100
 BODY_MAX = 2000
 AUTHOR_MAX = 30
+ASSIGNEE_MAX = 30
+STATUSES = ("todo", "doing", "done")
 
 
 class Feature(Base):
@@ -67,6 +69,13 @@ class Decision(Base):
 
 class FeatureCreate(BaseModel):
     title: str
+
+
+class FeatureUpdate(BaseModel):
+    """보낸 항목만 바꾼다. assignee를 null로 보내면 담당자를 비운다(미지정)."""
+
+    status: str | None = None
+    assignee: str | None = None
 
 
 class FeatureOut(BaseModel):
@@ -222,6 +231,47 @@ def get_feature(
     db: Session = Depends(get_db),
 ) -> Feature:
     return require_feature(db, project_id, feature_id)
+
+
+@router.patch("/{feature_id}", response_model=FeatureOut)
+def update_feature(
+    feature_id: str,
+    body: FeatureUpdate,
+    project_id: str = Depends(check_project),
+    db: Session = Depends(get_db),
+) -> Feature:
+    feature = require_feature(db, project_id, feature_id)
+    sent = body.model_fields_set
+    if not sent & {"status", "assignee"}:
+        raise HTTPException(
+            status_code=422,
+            detail=error_detail(
+                "update_empty", "바꿀 상태 또는 담당자를 보내세요."
+            ),
+        )
+    if "status" in sent:
+        if body.status not in STATUSES:
+            raise HTTPException(
+                status_code=422,
+                detail=error_detail(
+                    "status_invalid", "상태는 todo, doing, done 중 하나여야 합니다."
+                ),
+            )
+        feature.status = body.status
+    if "assignee" in sent:
+        assignee = None if body.assignee is None else body.assignee.strip()
+        if assignee is not None and not 1 <= len(assignee) <= ASSIGNEE_MAX:
+            raise HTTPException(
+                status_code=422,
+                detail=error_detail(
+                    "assignee_invalid",
+                    f"담당자는 1~{ASSIGNEE_MAX}자로 입력하거나 null로 비우세요.",
+                ),
+            )
+        feature.assignee = assignee
+    db.commit()
+    db.refresh(feature)
+    return feature
 
 
 @router.put("/{feature_id}/materials/{material_id}", response_model=MaterialLinkOut)
