@@ -103,6 +103,18 @@ export function createFeature(title: string): Promise<Feature> {
   })
 }
 
+/** 상태·담당자를 바꾼다. 보낸 항목만 바뀌고, assignee에 null을 보내면 담당자가 비워진다. */
+export function updateFeature(
+  featureId: string,
+  patch: { status?: FeatureStatus; assignee?: string | null },
+): Promise<Feature> {
+  return request<Feature>(featureUrl(featureId), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
 const materialsOfUrl = (featureId: string) => `${featureUrl(featureId)}/materials`
 
 /** 기능에 연결된 자료 목록 */
