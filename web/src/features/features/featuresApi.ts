@@ -1,3 +1,5 @@
+import { apiFetch } from '../../shared/connection'
+
 export type FeatureStatus = 'todo' | 'doing' | 'done'
 
 // 서버(GET/POST /features) 응답과 같은 형태
@@ -52,7 +54,8 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
+// 기본은 지금 연 웹 주소의 /api (Vite가 서버로 넘김). 다른 PC에서 열어도 같은 서버로 간다. (06회차 #21)
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const PROJECT_URL = `${API_BASE}/api/projects/studio-bridge`
 
 // 기능 요청의 주소는 모두 여기서 만든다 (ID 처리 통일)
@@ -63,7 +66,7 @@ const featureUrl = (featureId: string) =>
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
-    res = await fetch(url, init)
+    res = await apiFetch(url, init)
   } catch {
     throw new ApiError('서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인하세요.', null)
   }

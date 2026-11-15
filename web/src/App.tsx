@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BoardView } from './features/board'
 import { FeatureView } from './features/features/FeatureView'
 import { MaterialLibrary } from './features/materials/MaterialLibrary'
+import { ConnectionPanel } from './shared/ConnectionPanel'
 
 type Menu = 'home' | 'board' | 'features' | 'materials'
 
@@ -31,6 +32,9 @@ function App() {
           자료함
         </button>
       </nav>
+
+      {/* 06회차 #21: 서버 연결 확인·팀 키 입력 */}
+      <ConnectionPanel />
 
       <main style={{ padding: 16 }}>
         <section hidden={menu !== 'home'}>
