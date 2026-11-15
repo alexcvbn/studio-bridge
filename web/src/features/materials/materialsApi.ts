@@ -56,3 +56,15 @@ export function fetchMaterial(materialId: string): Promise<MaterialDetail> {
 export function findBySourceUid(sourceUid: string): Promise<SourceLookup> {
   return getJson<SourceLookup>(`${BASE}/by-source?source_uid=${encodeURIComponent(sourceUid)}`)
 }
+
+export type SnapshotRecord = Snapshot & {
+  is_current: boolean // 맨 앞(가장 최근) 수집본만 true
+}
+
+/** 한 자료의 수집본 전체를 최근 것부터 가져온다 (06회차 #24). 다시 보내도 이전 원문이 남는다. */
+export async function fetchSnapshots(materialId: string): Promise<SnapshotRecord[]> {
+  const data = await getJson<{ items: SnapshotRecord[] }>(
+    `${BASE}/${encodeURIComponent(materialId)}/snapshots`,
+  )
+  return data.items
+}

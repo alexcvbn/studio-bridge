@@ -1,4 +1,4 @@
-"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02회차 #8, 04회차 #16, 05회차 #20)."""
+"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02~06회차 #8·#16·#20·#24)."""
 
 import uuid
 from datetime import UTC, datetime
@@ -66,13 +66,17 @@ def error(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status, {"code": code, "message": message})
 
 
-def latest_snapshot(db: Session, material_id: str) -> Snapshot | None:
-    query = (
+def snapshots_newest_first(material_id: str):
+    """한 자료의 수집본을 최근 것부터 고르는 조회문. 현재 수집본 판정과 기록 목록이 같은 순서를 쓴다."""
+    return (
         select(Snapshot)
         .where(Snapshot.material_id == material_id)
         .order_by(Snapshot.received_at.desc())
     )
-    return db.scalars(query).first()
+
+
+def latest_snapshot(db: Session, material_id: str) -> Snapshot | None:
+    return db.scalars(snapshots_newest_first(material_id)).first()
 
 
 def count_snapshots(db: Session, material_id: str) -> int:
@@ -239,6 +243,24 @@ def get_material_by_source(
         return {"source_uid": source_uid, "material": None}
     m, s = found
     return {"source_uid": source_uid, "material": material_json(db, m, s)}
+
+
+@router.get("/{material_id}/snapshots")
+def list_snapshots(material_id: str, db: Session = Depends(get_db)):
+    """한 자료의 수집본 전체를 최근 것부터 돌려준다. 다시 보내도 이전 원문이 남는다. (06회차 #24)
+
+    맨 앞(is_current: true)이 현재 수집본이고, 나머지가 이전 원문이다.
+    여기서는 읽기만 한다. 과거 수집본을 고치거나 지우는 API는 만들지 않는다.
+    """
+    m = db.get(Material, material_id)
+    snapshots = list(db.scalars(snapshots_newest_first(material_id))) if m else []
+    if m is None or not snapshots:
+        raise error(404, "material_not_found", "그 자료를 찾을 수 없습니다")
+    return {
+        "material_id": m.material_id,
+        "source_uid": m.source_uid,
+        "items": [{**snapshot_json(s), "is_current": i == 0} for i, s in enumerate(snapshots)],
+    }
 
 
 @router.get("/{material_id}")
