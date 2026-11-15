@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addMaterialCard } from '../board'
 import { MaterialActions } from './MaterialActions'
+import { SnapshotHistory } from './SnapshotHistory'
 import { SourceUidSearch } from './SourceUidSearch'
-import { fetchMaterial, fetchMaterials, type MaterialDetail, type MaterialSummary } from './materialsApi'
+import {
+  fetchMaterial,
+  fetchMaterials,
+  type MaterialDetail,
+  type MaterialSummary,
+  type Snapshot,
+} from './materialsApi'
 
 interface MaterialLibraryProps {
   /** "보드에 추가"를 누르면 호출된다. App.tsx가 넘기지 않으면 B의 addMaterialCard를 바로 쓴다. */
@@ -20,6 +27,8 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
   const [detail, setDetail] = useState<MaterialDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
+  // 이전 수집본을 골라 보는 중이면 그 수집본, 아니면 null(현재 원문을 본다)
+  const [olderView, setOlderView] = useState<Snapshot | null>(null)
   const latestRequest = useRef(0) // 빨리 바꿔 눌러도 마지막 선택의 응답만 쓰기 위한 번호
 
   const loadList = useCallback(async () => {
@@ -34,6 +43,12 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
     }
   }, [])
 
+  // 새로고침: 목록과 함께, 열어 둔 자료도 다시 불러와 다시 보낸 코드가 바로 보이게 한다 (06회차 #24)
+  function refresh() {
+    void loadList()
+    if (selectedId) void select(selectedId, true)
+  }
+
   useEffect(() => {
     // 화면이 처음 열릴 때 한 번 목록을 불러온다 (listLoading은 true로 시작)
     fetchMaterials()
@@ -42,10 +57,11 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
       .finally(() => setListLoading(false))
   }, [])
 
-  async function select(materialId: string) {
+  async function select(materialId: string, keepShowing = false) {
     const requestNo = ++latestRequest.current
     setSelectedId(materialId)
-    setDetail(null)
+    if (!keepShowing) setDetail(null) // 새로고침일 때는 불러오는 동안 이전 내용을 그대로 둔다
+    setOlderView(null)
     setDetailError(null)
     setDetailLoading(true)
     try {
@@ -58,12 +74,15 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
     }
   }
 
+  // 원문 칸에 보여 줄 수집본: 이전 것을 골랐으면 그것, 아니면 현재 수집본
+  const shown = detail ? (olderView ?? detail.current_snapshot) : null
+
   return (
     <section style={{ display: 'flex', gap: 16, textAlign: 'left' }}>
       <div style={{ width: 260 }}>
         <h2>받은 자료함</h2>
         <p style={{ color: '#15803d' }}>실제 서버 데이터 · 새로고침해도 유지됩니다</p>
-        <button type="button" onClick={() => void loadList()} disabled={listLoading}>
+        <button type="button" onClick={refresh} disabled={listLoading}>
           {listLoading ? '불러오는 중…' : '새로고침'}
         </button>
 
@@ -105,28 +124,43 @@ export function MaterialLibrary({ onAddMaterial = addMaterialCard }: MaterialLib
             </button>
           </p>
         )}
-        {detail && (
+        {detail && shown && (
           <>
-            <h3>{detail.current_snapshot.name}</h3>
+            <h3>{shown.name}</h3>
             <MaterialActions
               key={detail.material_id}
               materialId={detail.material_id}
               materialName={detail.current_snapshot.name}
               onAddMaterial={onAddMaterial}
             />
+            {olderView && (
+              <p role="status" style={{ background: '#fef3c7', color: '#92400e', padding: 8 }}>
+                이전 수집본을 보고 있습니다. 현재 원문이 아닙니다.{' '}
+                <button type="button" onClick={() => setOlderView(null)}>
+                  현재 원문 보기
+                </button>
+              </p>
+            )}
             <p>
-              {detail.current_snapshot.source_path} · {detail.current_snapshot.script_type} · 받은 시각{' '}
-              {new Date(detail.current_snapshot.received_at).toLocaleString()}
+              {shown.source_path} · {shown.script_type} · 받은 시각{' '}
+              {new Date(shown.received_at).toLocaleString()}
             </p>
             <p style={{ fontSize: 12, color: '#666' }}>
               source_uid {detail.source_uid} · 수집본 {detail.snapshot_count}개
               <br />
-              material_id {detail.material_id} · request_id {detail.current_snapshot.request_id} · {detail.current_snapshot.raw_code.split('\n').length}줄 ·{' '}
-              {detail.current_snapshot.raw_code.length}자
+              material_id {detail.material_id} · snapshot_id {shown.snapshot_id}
+              <br />
+              request_id {shown.request_id} · {shown.raw_code.split('\n').length}줄 · {shown.raw_code.length}자
             </p>
             <pre style={{ background: '#111', color: '#eee', padding: 12, whiteSpace: 'pre', overflowX: 'auto' }}>
-              <code>{detail.current_snapshot.raw_code}</code>
+              <code>{shown.raw_code}</code>
             </pre>
+            <SnapshotHistory
+              key={`${detail.material_id}:${detail.current_snapshot.snapshot_id}`}
+              materialId={detail.material_id}
+              viewingId={shown.snapshot_id}
+              onView={(s) => setOlderView(s.snapshot_id === detail.current_snapshot.snapshot_id ? null : s)}
+            />
           </>
         )}
       </div>
