@@ -1,4 +1,6 @@
 
+import { apiFetch } from '../../shared/connection'
+
 const BASE = '/api/projects/studio-bridge/materials'
 
 export type MaterialSummary = {
@@ -33,7 +35,7 @@ export type SourceLookup = {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+  const res = await apiFetch(url)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.detail?.message ?? `서버 오류 (${res.status})`)

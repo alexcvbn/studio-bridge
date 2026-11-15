@@ -5,7 +5,7 @@ React Flow 기반 보드. 카드 위치는 `sync/` 서버(Yjs)로 다른 브라�
 
 ## 실행 (서버 3개를 각각 다른 터미널에서)
 1. 공통 서버: `cd server` 후 `uv run uvicorn app.main:app --reload --port 8000`
-2. 동기화 서버: `cd sync && npm install && npm start` (ws://localhost:1234)
+2. 동기화 서버: `cd sync && npm install && npm start` (이 PC의 1234번. 웹은 웹을 연 호스트의 1234번으로 접속. 두 컴퓨터 공유는 `server/README.md`의 "두 컴퓨터 공유 실행")
 3. 웹: `cd web && npm ci && npm run dev` (http://localhost:5173, `/api`는 8000번으로 프록시)
 
 검증: `cd web && npm run build && npm run lint`

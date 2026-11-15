@@ -7,6 +7,9 @@
 -- 05회차 #17: 선택한 스크립트의 연결 기능·현재 결정을 읽기 전용으로 보여준다.
 --   GET {서버}/api/projects/studio-bridge/context?source_uid=...
 --   받음: material 또는 null, features[] (기능마다 current_decision 또는 null)
+-- 06회차 #21: 공유 모드 서버의 팀 키를 X-StudioBridge-Key 헤더로 보내고, '연결 확인'으로
+--   서버 꺼짐 / 키 필요·틀림 / 허용 안 됨 / 연결됨을 구분한다.
+--   GET {서버}/api/projects/studio-bridge/access → { project_id, mode: "shared" | "local" }
 -- 이번 범위에서 만들지 않는 것: 자동 전송 감시, 게임 값 변경, 코드 요약, 결정 작성·수정, 복제본 새 ID 부여(07회차).
 
 local HttpService = game:GetService("HttpService")
@@ -17,6 +20,10 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local PROJECT_ID = "studio-bridge"
 local DEFAULT_SERVER = "http://localhost:8000"
 local SETTING_SERVER = "StudioBridgeServerUrl"
+-- 팀 키는 이 PC의 플러그인 설정에만 둔다. 화면에는 다시 보여주지 않는다. (06회차 #21)
+local SETTING_KEY = "StudioBridgeTeamKey"
+local KEY_HEADER = "X-StudioBridge-Key"
+local KEY_MASK = "●●●●●●●● (저장됨, 바꾸려면 클릭)"
 -- source_uid는 스크립트 객체의 attribute에 둔다. 이름·경로가 바뀌어도 그대로 남는다.
 local UID_ATTRIBUTE = "StudioBridgeSourceUid"
 local SCRIPT_TYPES = { Script = true, LocalScript = true, ModuleScript = true }
@@ -113,22 +120,46 @@ serverBox.Text = (plugin:GetSetting(SETTING_SERVER) :: string?) or DEFAULT_SERVE
 serverBox.LayoutOrder = 2
 serverBox.Parent = root
 
-local sendButton = makeButton("코드 보내기", 3)
-local retryButton = makeButton("다시 시도 (같은 요청)", 4)
+-- 06회차 #21: 팀 키 (공유 모드 서버일 때만)
+makeLabel("팀 키 (공유 모드 서버일 때만. 로컬 모드는 비워 둠)", 3, 16)
+
+local teamKey: string = (plugin:GetSetting(SETTING_KEY) :: string?) or ""
+
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(1, 0, 0, 26)
+keyBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+keyBox.TextColor3 = Color3.new(1, 1, 1)
+keyBox.PlaceholderText = "팀 키 입력 후 Enter"
+keyBox.Font = Enum.Font.Code
+keyBox.TextSize = 13
+keyBox.TextXAlignment = Enum.TextXAlignment.Left
+-- 누르면 가림 표시를 지우고 새 키를 받는다. 아무것도 입력하지 않으면 기존 키를 유지한다.
+keyBox.ClearTextOnFocus = true
+keyBox.LayoutOrder = 4
+keyBox.Parent = root
+
+local checkButton = makeButton("연결 확인", 5)
+local clearKeyButton = makeButton("저장된 팀 키 지우기", 6)
+clearKeyButton.BackgroundColor3 = Color3.fromRGB(110, 110, 110)
+local connLabel = makeLabel("서버 주소와 (공유 모드면) 팀 키를 넣고 '연결 확인'을 누르세요.", 7, 0)
+connLabel.AutomaticSize = Enum.AutomaticSize.Y
+
+local sendButton = makeButton("코드 보내기", 13)
+local retryButton = makeButton("다시 시도 (같은 요청)", 14)
 retryButton.BackgroundColor3 = Color3.fromRGB(110, 110, 110)
 retryButton.Visible = false
 
-local statusLabel = makeLabel("스크립트 하나를 선택하고 '코드 보내기'를 누르세요.", 5, 0)
+local statusLabel = makeLabel("스크립트 하나를 선택하고 '코드 보내기'를 누르세요.", 15, 0)
 statusLabel.AutomaticSize = Enum.AutomaticSize.Y
 
 -- 05회차 #17: 관련 결정 읽기 (읽기 전용)
-local divider = makeLabel("관련 기능·현재 결정 (읽기 전용)", 6, 18)
+local divider = makeLabel("관련 기능·현재 결정 (읽기 전용)", 16, 18)
 divider.Font = Enum.Font.GothamBold
-local readButton = makeButton("관련 결정 읽기", 7)
-local readRetryButton = makeButton("다시 읽기 (같은 스크립트)", 8)
+local readButton = makeButton("관련 결정 읽기", 17)
+local readRetryButton = makeButton("다시 읽기 (같은 스크립트)", 18)
 readRetryButton.BackgroundColor3 = Color3.fromRGB(110, 110, 110)
 readRetryButton.Visible = false
-local contextLabel = makeLabel("스크립트 하나를 선택하고 '관련 결정 읽기'를 누르세요.", 9, 0)
+local contextLabel = makeLabel("스크립트 하나를 선택하고 '관련 결정 읽기'를 누르세요.", 19, 0)
 contextLabel.AutomaticSize = Enum.AutomaticSize.Y
 
 -- ---------- 상태 ----------
@@ -153,6 +184,11 @@ type Tone = "info" | "busy" | "ok" | "fail"
 local function setStatus(text: string, tone: Tone)
 	statusLabel.Text = text
 	statusLabel.TextColor3 = TONE_COLORS[tone]
+end
+
+local function setConn(text: string, tone: Tone)
+	connLabel.Text = text
+	connLabel.TextColor3 = TONE_COLORS[tone]
 end
 
 local function setContext(text: string, tone: Tone)
@@ -185,6 +221,46 @@ serverBox.FocusLost:Connect(function()
 	serverBox.Text = serverUrl()
 	plugin:SetSetting(SETTING_SERVER, serverBox.Text)
 end)
+
+-- ---------- 팀 키 (06회차 #21) ----------
+local function showKeyMask()
+	keyBox.Text = if teamKey ~= "" then KEY_MASK else ""
+	clearKeyButton.Visible = teamKey ~= ""
+end
+
+keyBox.FocusLost:Connect(function()
+	local typed = string.gsub(keyBox.Text, "^%s+", "")
+	typed = string.gsub(typed, "%s+$", "")
+	if typed ~= "" and typed ~= KEY_MASK then
+		teamKey = typed
+		plugin:SetSetting(SETTING_KEY, teamKey)
+		setConn("팀 키를 저장했습니다. '연결 확인'으로 서버가 받아 주는지 확인하세요.", "info")
+	end
+	showKeyMask()
+end)
+
+clearKeyButton.Activated:Connect(function()
+	teamKey = ""
+	plugin:SetSetting(SETTING_KEY, "")
+	showKeyMask()
+	setConn("저장된 팀 키를 지웠습니다. 로컬 모드 서버에만 연결됩니다.", "info")
+end)
+
+-- 모든 제품 요청에 같은 헤더를 붙인다. 키는 헤더로만 보내고 주소·화면에 넣지 않는다.
+local function requestHeaders(json: boolean): { [string]: string }
+	local headers = {}
+	if json then
+		headers["Content-Type"] = "application/json"
+	end
+	if teamKey ~= "" then
+		headers[KEY_HEADER] = teamKey
+	end
+	return headers
+end
+
+-- 연결 자체가 안 될 때 확인할 것. 다른 PC의 localhost는 서버 PC가 아니다.
+local CONNECT_HINT =
+	"확인: 서버가 켜져 있는지, 다른 PC의 서버라면 주소가 http://서버PC IP:8000인지(localhost 아님), 서버가 공유 모드로 실행 중인지, 서버 PC 방화벽이 8000번을 막지 않는지."
 
 -- ---------- 선택 검사 ----------
 local function pickScript(): (LuaSourceContainer?, string?)
@@ -304,7 +380,7 @@ local function send(payload: Payload)
 		return HttpService:RequestAsync({
 			Url = `{url}/api/projects/{PROJECT_ID}/materials/collect`,
 			Method = "POST",
-			Headers = { ["Content-Type"] = "application/json" },
+			Headers = requestHeaders(true),
 			Body = HttpService:JSONEncode(payload),
 		})
 	end)
@@ -313,7 +389,10 @@ local function send(payload: Payload)
 	if not ok then
 		-- 서버 꺼짐, HTTP 허용 안 됨, 주소 오류 등. 성공으로 표시하지 않는다.
 		failedPayload = payload
-		setStatus(`실패: 서버에 연결하지 못했습니다.\n{tostring(result)}\n같은 요청으로 다시 시도할 수 있습니다.`, "fail")
+		setStatus(
+			`실패: 서버에 연결하지 못했습니다.\n{tostring(result)}\n{CONNECT_HINT}\n같은 요청으로 다시 시도할 수 있습니다.`,
+			"fail"
+		)
 		refreshButtons()
 		return
 	end
@@ -473,6 +552,7 @@ local function readContext(target: ReadTarget)
 		return HttpService:RequestAsync({
 			Url = `{url}/api/projects/{PROJECT_ID}/context?source_uid={HttpService:UrlEncode(target.source_uid)}`,
 			Method = "GET",
+			Headers = requestHeaders(false),
 		})
 	end)
 
@@ -481,7 +561,7 @@ local function readContext(target: ReadTarget)
 	local data: any = nil
 	if not ok then
 		-- 서버 꺼짐, HTTP 허용 안 됨, 주소 오류 등. "결정 없음"과 다르게 실패로 보여준다.
-		failure = `서버에 연결하지 못했습니다.\n{tostring(result)}`
+		failure = `서버에 연결하지 못했습니다.\n{tostring(result)}\n{CONNECT_HINT}`
 	else
 		local response = result :: { Success: boolean, StatusCode: number, Body: string }
 		if not response.Success then
@@ -581,8 +661,62 @@ sendToolbarButton.Click:Connect(function()
 	task.spawn(sendSelected)
 end)
 
+-- ---------- 연결 확인 (06회차 #21) ----------
+local checking = false
+
+local function checkConnection()
+	if checking then
+		return
+	end
+	local url = serverUrl()
+	if url == "" then
+		setConn("서버 주소를 입력하세요.", "fail")
+		return
+	end
+	checking = true
+	checkButton.Text = "확인 중..."
+	setConn(`확인 중: {url}`, "busy")
+
+	local ok, result = pcall(function()
+		return HttpService:RequestAsync({
+			Url = `{url}/api/projects/{PROJECT_ID}/access`,
+			Method = "GET",
+			Headers = requestHeaders(false),
+		})
+	end)
+
+	checking = false
+	checkButton.Text = "연결 확인"
+	if not ok then
+		setConn(`실패: 서버에 연결하지 못했습니다.\n{tostring(result)}\n{CONNECT_HINT}`, "fail")
+		return
+	end
+	local response = result :: { Success: boolean, StatusCode: number, Body: string }
+	if not response.Success then
+		local hint = if response.StatusCode == 401
+			then "\n팀 키를 서버를 띄운 팀원에게 다시 확인하고 위 칸에 입력하세요."
+			else ""
+		setConn(`실패: {errorMessage(response.StatusCode, response.Body)}{hint}`, "fail")
+		return
+	end
+	local decodedOk, data = pcall(function()
+		return HttpService:JSONDecode(response.Body)
+	end)
+	if not decodedOk or type(data) ~= "table" or (data.mode ~= "shared" and data.mode ~= "local") then
+		setConn("실패: 서버 응답 형식이 맞지 않습니다. Studio Bridge 서버 주소가 맞는지 확인하세요.", "fail")
+		return
+	end
+	local modeText = if data.mode == "shared" then "공유 모드 (팀 키 확인됨)" else "로컬 모드 (이 PC만)"
+	setConn(`연결됨: {modeText}\n{url}\n{os.date("%Y-%m-%d %H:%M:%S")}`, "ok")
+end
+
+checkButton.Activated:Connect(function()
+	task.spawn(checkConnection)
+end)
+
 widget:GetPropertyChangedSignal("Enabled"):Connect(function()
 	panelButton:SetActive(widget.Enabled)
 end)
 
 refreshButtons()
+showKeyMask()

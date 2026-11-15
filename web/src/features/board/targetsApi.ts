@@ -1,3 +1,4 @@
+import { apiFetch } from '../../shared/connection'
 import type { CardKind } from './types'
 
 const BASE = '/api/projects/studio-bridge'
@@ -10,7 +11,7 @@ export interface TargetInfo {
 }
 
 async function getItems<T>(path: string): Promise<T[]> {
-  const res = await fetch(`${BASE}/${path}`)
+  const res = await apiFetch(`${BASE}/${path}`)
   if (!res.ok) throw new Error(`서버 오류 (${res.status})`)
   const data = (await res.json()) as { items: T[] }
   return data.items

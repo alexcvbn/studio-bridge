@@ -1,10 +1,10 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
+import { syncParams, syncUrl } from '../../shared/connection'
 import type { BoardCard, CardKind } from './types'
 
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
 
-const SYNC_URL = import.meta.env.VITE_SYNC_URL ?? 'ws://localhost:1234'
 const ROOM = 'studio-bridge/main'
 
 // 새 카드는 카드 폭(200px)에 맞춘 격자에 놓아 서로 겹치지 않게 한다.
@@ -32,7 +32,7 @@ function connect(): Shared {
   const cards = doc.getMap<BoardCard>('cards')
   const removedCardIds = doc.getMap<boolean>('removedCardIds')
   const memo = doc.getText('memo')
-  const provider = new WebsocketProvider(SYNC_URL, ROOM, doc)
+  const provider = new WebsocketProvider(syncUrl(), ROOM, doc, { params: syncParams() })
 
   // 제거된 카드에 늦게 도착한 이동이 문서에 카드를 다시 넣어도 바로 지운다.
   // 이미 지운 항목을 다시 지우는 것은 변화가 없어 다른 클라이언트와 무한히 주고받지 않는다.
