@@ -134,6 +134,16 @@ class DecisionList(BaseModel):
     items: list[DecisionOut]  # decision_no 내림차순 (첫 항목이 현재 결정)
 
 
+def has_control_char(value: str, allow_newline: bool = False) -> bool:
+    """줄바꿈·탭·널 문자 등 눈에 안 보이는 제어문자가 섞였는지 본다."""
+    for ch in value:
+        if allow_newline and ch in "\n\r\t":
+            continue
+        if ord(ch) < 32 or ord(ch) == 127:
+            return True
+    return False
+
+
 def error_detail(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
 
@@ -190,11 +200,12 @@ def create_feature(
     db: Session = Depends(get_db),
 ) -> Feature:
     title = body.title.strip()
-    if not 1 <= len(title) <= TITLE_MAX:
+    if not 1 <= len(title) <= TITLE_MAX or has_control_char(title):
         raise HTTPException(
             status_code=422,
             detail=error_detail(
-                "title_invalid", f"기능 제목은 1~{TITLE_MAX}자로 입력하세요."
+                "title_invalid",
+                f"기능 제목은 줄바꿈 없이 1~{TITLE_MAX}자로 입력하세요.",
             ),
         )
     feature = Feature(
@@ -260,7 +271,9 @@ def update_feature(
         feature.status = body.status
     if "assignee" in sent:
         assignee = None if body.assignee is None else body.assignee.strip()
-        if assignee is not None and not 1 <= len(assignee) <= ASSIGNEE_MAX:
+        if assignee is not None and (
+            not 1 <= len(assignee) <= ASSIGNEE_MAX or has_control_char(assignee)
+        ):
             raise HTTPException(
                 status_code=422,
                 detail=error_detail(
@@ -354,18 +367,19 @@ def create_decision(
     require_feature(db, project_id, feature_id)
     text = body.body.strip()
     author = body.author_display_name.strip()
-    if not 1 <= len(text) <= BODY_MAX:
+    if not 1 <= len(text) <= BODY_MAX or has_control_char(text, allow_newline=True):
         raise HTTPException(
             status_code=422,
             detail=error_detail(
                 "body_invalid", f"결정 내용은 1~{BODY_MAX}자로 입력하세요."
             ),
         )
-    if not 1 <= len(author) <= AUTHOR_MAX:
+    if not 1 <= len(author) <= AUTHOR_MAX or has_control_char(author):
         raise HTTPException(
             status_code=422,
             detail=error_detail(
-                "author_invalid", f"작성자 표시명은 1~{AUTHOR_MAX}자로 입력하세요."
+                "author_invalid",
+                f"작성자 표시명은 줄바꿈 없이 1~{AUTHOR_MAX}자로 입력하세요.",
             ),
         )
     for _ in range(3):  # 같은 기능에 동시에 저장되면 decision_no가 겹칠 수 있어 다시 시도한다
