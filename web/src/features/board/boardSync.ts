@@ -1,11 +1,16 @@
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { syncParams, syncUrl } from '../../shared/connection'
+import { probeAccess, type AccessState } from './syncAccess'
 import type { BoardCard, CardKind } from './types'
 
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
 
 const ROOM = 'studio-bridge/main'
+
+// 연결되지 않은 채 이만큼 지나면 /access로 이유를 묻고, 그래도 안 되면 간격을 두고 다시 묻는다.
+const PROBE_DELAY_MS = 2000
+const PROBE_RETRY_MS = 5000
 
 // 새 카드는 카드 폭(200px)에 맞춘 격자에 놓아 서로 겹치지 않게 한다.
 const GRID = { cols: 4, w: 240, h: 110, x: 40, y: 40 }
@@ -18,6 +23,8 @@ export interface BoardSync {
   // 공동 메모. 카드와 같은 문서에 있어 같은 서버에 함께 저장된다.
   memo: Y.Text
   subscribeStatus: (listener: (status: SyncStatus) => void) => () => void
+  // 연결되지 않은 이유(접속 거절인지 서버에 닿지 않는지). 연결되면 ok.
+  subscribeAccess: (listener: (access: AccessState) => void) => () => void
 }
 
 interface Shared extends BoardSync {
@@ -45,10 +52,46 @@ function connect(): Shared {
 
   let status: SyncStatus = 'connecting'
   const listeners = new Set<(s: SyncStatus) => void>()
+  let access: AccessState = { phase: 'unknown' }
+  const accessListeners = new Set<(a: AccessState) => void>()
+  const setAccess = (next: AccessState) => {
+    access = next
+    accessListeners.forEach((l) => l(next))
+  }
+
+  // 브라우저는 WebSocket이 거절돼도 이유를 알 수 없어 서버에 따로 묻는다.
+  let destroyed = false
+  let probing = false
+  let probeTimer: ReturnType<typeof setTimeout> | undefined
+  const probe = async () => {
+    probeTimer = undefined
+    probing = true
+    const result = await probeAccess(ROOM)
+    probing = false
+    if (destroyed) return
+    if (status === 'connected') {
+      setAccess({ phase: 'ok' })
+      return
+    }
+    setAccess(result)
+    probeTimer = setTimeout(probe, PROBE_RETRY_MS)
+  }
+  const scheduleProbe = () => {
+    if (!probeTimer && !probing && !destroyed) probeTimer = setTimeout(probe, PROBE_DELAY_MS)
+  }
+
   provider.on('status', ({ status: next }: { status: SyncStatus }) => {
     status = next
     listeners.forEach((l) => l(next))
+    if (next === 'connected') {
+      clearTimeout(probeTimer)
+      probeTimer = undefined
+      setAccess({ phase: 'ok' })
+    } else {
+      scheduleProbe()
+    }
   })
+  scheduleProbe()
 
   return {
     cards,
@@ -61,7 +104,16 @@ function connect(): Shared {
         listeners.delete(listener)
       }
     },
+    subscribeAccess: (listener) => {
+      accessListeners.add(listener)
+      listener(access)
+      return () => {
+        accessListeners.delete(listener)
+      }
+    },
     destroy: () => {
+      destroyed = true
+      clearTimeout(probeTimer)
       provider.destroy()
       doc.destroy()
     },

@@ -10,14 +10,9 @@ import {
 import '@xyflow/react/dist/style.css'
 import { addCard, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
 import { MemoPanel } from './MemoPanel'
+import { describeSync, type AccessState } from './syncAccess'
 import { fetchTargets, type TargetInfo } from './targetsApi'
 import type { BoardCard, CardKind } from './types'
-
-const STATUS_TEXT: Record<SyncStatus, string> = {
-  connecting: '동기화 연결 중',
-  connected: '동기화 연결됨',
-  disconnected: '동기화 연결 끊김',
-}
 
 const KIND_TEXT: Record<CardKind, string> = { material: '자료', feature: '기능' }
 
@@ -57,6 +52,7 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
   // 노드 상태는 React Flow가 잰 크기·선택 정보를 보존하도록 그대로 들고 있는다.
   const [nodes, setNodes] = useState<CardNode[]>(() => syncNodes([]))
   const [status, setStatus] = useState<SyncStatus>('connecting')
+  const [access, setAccess] = useState<AccessState>({ phase: 'unknown' })
   const [targetState, setTargetState] = useState<TargetState>({ phase: 'loading' })
   const [pick, setPick] = useState('')
 
@@ -65,11 +61,13 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
     const apply = () => setNodes(syncNodes)
     sync.cards.observe(apply)
     sync.removedCardIds.observe(apply)
-    const unsubscribe = sync.subscribeStatus(setStatus)
+    const unsubscribeStatus = sync.subscribeStatus(setStatus)
+    const unsubscribeAccess = sync.subscribeAccess(setAccess)
     return () => {
       sync.cards.unobserve(apply)
       sync.removedCardIds.unobserve(apply)
-      unsubscribe()
+      unsubscribeStatus()
+      unsubscribeAccess()
     }
   }, [])
 
@@ -152,6 +150,7 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
     removeCard(cardId)
   }
 
+  const sync = describeSync(status, access)
   const selectedNode = nodes.find((n) => n.selected)
   const selected = selectedNode && {
     card_id: selectedNode.id,
@@ -194,7 +193,9 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
             </button>
           </>
         )}
-        <span data-testid="sync-status">{STATUS_TEXT[status]}</span>
+        <span data-testid="sync-status" style={{ color: sync.tone === 'fail' ? '#d32f2f' : undefined }}>
+          {sync.text}
+        </span>
         <span data-testid="card-count">카드 {nodes.length}개</span>
         <span data-testid="selected-card">
           선택:{' '}
@@ -225,7 +226,7 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
             <Controls showInteractive={false} />
           </ReactFlow>
         </div>
-        <MemoPanel status={status} />
+        <MemoPanel status={status} access={access} />
       </div>
     </section>
   )
