@@ -117,6 +117,21 @@ Windows PowerShell은 `$env:STUDIO_BRIDGE_DB="$env:TEMP\sb-check.db"` 후 같은
 미수집·미연결·다중 연결·결정 없음·현재 결정·결정 변경·422·403을 확인하고 `14/14 통과`가 나와야 한다.
 `STUDIO_BRIDGE_DB`를 지정하지 않으면 기본 DB `server/studio_bridge.db`를 쓴다.
 
+## 식별 검사 (07회차 #25)
+
+이름·경로가 바뀌어도 `source_uid`가 같으면 같은 자료이고, 복제본이 새 `source_uid`로 오면 다른 자료다. 플러그인이 보내는 것과 같은 요청으로 확인한다. 위와 같은 임시 DB 서버에 실행한다.
+
+```bash
+uv run python scripts/check_identity.py http://127.0.0.1:8765
+```
+
+- 이름·경로 변경 후 재전송: 같은 `material_id`, 문맥 조회가 새 이름으로 같은 기능 연결·현재 결정을 돌려줌, 이전 이름의 원문은 이전 수집본으로 남음.
+- 복제본(새 `source_uid`, 이름·경로·원문은 원본과 같음): 다른 `material_id`, 문맥 조회 `features: []`, 원본의 연결·결정·수집본 수는 그대로.
+- 보존한 요청 재시도(같은 `request_id`·같은 payload): 200 `deduplicated: true`, 수집본 1건. 같은 `request_id`에 다른 원문은 409이고 이전 원문 유지.
+
+`18/18 통과`가 나와야 한다. 공유 모드 서버에 실행할 때는 같은 터미널에 `STUDIO_BRIDGE_TEAM_KEY`를 넣는다.
+서버 중단·복구 재시도는 서버를 끄고 같은 payload를 보낸 뒤(연결 실패) 다시 켜서 두 번 보내 201 → 200 `deduplicated`인지 본다. 2026-11-18 실행 결과는 `plugin/README.md`의 "07회차 확인 결과"에 있다.
+
 ## 통합 검증 방법
 
 1. /docs에서 기능과 자료를 각각 생성하고 반환된 ID를 기록한다.
