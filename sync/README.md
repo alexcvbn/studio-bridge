@@ -45,7 +45,13 @@ STUDIO_BRIDGE_TEAM_KEY='<팀 키>' npm start   # 0.0.0.0:1234, 팀 키 필요
 - 공유 모드(`STUDIO_BRIDGE_TEAM_KEY` 8자 이상): 기본 `0.0.0.0`에서 열고, 연결 주소의 `key` 값이 팀 키와 같아야 합니다. 없으면·틀리면 401로 끊습니다.
   브라우저 WebSocket은 임의 헤더를 붙일 수 없어 HTTP(`X-StudioBridge-Key` 헤더)와 달리 주소의 값으로 받습니다. 웹은 연결 패널에 입력한 키를 `y-websocket`의 `params`로 넘깁니다.
 - 보드 이름은 `studio-bridge/main`만 받습니다. 다른 보드·프로젝트는 403입니다.
+- 브라우저는 WebSocket이 거절돼도 401/403을 알 수 없어 "서버 꺼짐"과 구분되지 않습니다. 그래서 같은 규칙의 결과를 HTTP로 알려 주는 `GET /access?room=<보드 이름>`을 둡니다. 키는 `X-StudioBridge-Key` 헤더로 보내고(주소에 넣지 않음), 응답은 `200 {"ok":true}` 또는 `401/403 {"ok":false,"code":"team_key_required|team_key_invalid|board_forbidden|local_only"}`입니다. 웹은 연결되지 않은 채 몇 초가 지나면 이 주소로 이유를 물어 보드 화면에 "접속 거절: …"과 "서버에 연결할 수 없음"을 따로 표시합니다. 접속 규칙은 WebSocket과 같고, 응답에 비밀이 없어 다른 출처에서도 읽을 수 있게 열어 둡니다.
 - 거절 기록에는 사유·IP만 남기고 주소(키 포함)는 남기지 않습니다: `[sync] 접속 거절 401 team_key_invalid from=192.168.10.100`
 - 검사: `STUDIO_BRIDGE_TEAM_KEY='<키>' node check-access.cjs ws://<서버 IP>:<포트>` (실제 보드를 건드리지 않게 `YPERSISTENCE`를 임시 폴더로 지정해 띄운 서버에 실행)
 - 웹 빌드의 `VITE_` 변수에 비밀 키를 넣지 않습니다.
+
+## 복원과 백업 확인 (08회차)
+- 서버를 껐다 켜면 `sync/data/`에서 카드 위치, 제거 기록(`removedCardIds`), 메모를 다시 읽습니다. 제거한 카드는 복원되지 않습니다.
+- 백업 확인 순서(서버를 끈 상태에서): 1) `sync/data/`를 통째로 복사해 둔다. 2) 서버를 켜서 카드를 바꾼다. 3) 서버를 끄고 `sync/data/`를 지운 뒤 복사해 둔 폴더로 바꾼다. 4) 서버를 켜면 백업 시점의 카드·메모가 돌아온다.
+- 서버 DB(`server/studio_bridge.db`)와 같은 시점으로 맞추는 절차는 D의 백업·복원 이슈에서 다룹니다. 카드를 제거해도 자료·기능·결정은 서버 DB에 그대로 남습니다.
 

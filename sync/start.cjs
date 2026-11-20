@@ -56,18 +56,24 @@ const sameKey = (sent) => {
 }
 
 // 연결을 받을지 정한다. 거절이면 [상태, 사유 코드], 허용이면 null.
-const checkUpgrade = (request) => {
-  const url = new URL(request.url || '/', 'http://sync.local')
-  const room = decodeURIComponent(url.pathname.slice(1))
-  const remote = request.socket.remoteAddress
+// WS 접속과 /access 확인이 같은 규칙을 쓰도록 값만 받는다. (키는 주소 또는 헤더로 온다.)
+const evaluate = (remote, room, sentKey) => {
   if (!shared && !isLoopback(remote)) return [403, 'local_only']
   if (shared) {
-    const sent = url.searchParams.get('key') || ''
-    if (sent === '') return [401, 'team_key_required']
-    if (!sameKey(sent)) return [401, 'team_key_invalid']
+    if (!sentKey) return [401, 'team_key_required']
+    if (!sameKey(sentKey)) return [401, 'team_key_invalid']
   }
   if (room !== ALLOWED_ROOM) return [403, 'board_forbidden']
   return null
+}
+
+const checkUpgrade = (request) => {
+  const url = new URL(request.url || '/', 'http://sync.local')
+  return evaluate(
+    request.socket.remoteAddress,
+    decodeURIComponent(url.pathname.slice(1)),
+    url.searchParams.get('key') || '',
+  )
 }
 
 // y-websocket은 exports로 bin 경로를 막아 두어서 파일 경로로 직접 불러온다.
@@ -80,7 +86,42 @@ const wss = new WebSocket.Server({ noServer: true })
 wss.on('connection', (conn, request) => setupWSConnection(conn, request, { docName: ALLOWED_ROOM }))
 
 const REASONS = { 401: 'Unauthorized', 403: 'Forbidden' }
-const server = http.createServer((_request, response) => {
+// 브라우저 WebSocket은 거절돼도 401/403을 알려 주지 않아 "서버 꺼짐"과 구분할 수 없다.
+// 그래서 같은 규칙의 결과를 HTTP로 알려 주는 /access를 둔다. 키는 헤더로 받고 기록하지 않는다.
+// 응답에는 비밀이 없고, 접속 규칙은 WS와 같으므로 다른 출처에서 읽을 수 있게 연다.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'X-StudioBridge-Key',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+}
+
+const handleAccess = (request, response, url) => {
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204, CORS)
+    response.end()
+    return
+  }
+  const room = url.searchParams.get('room') || ''
+  const sentKey = request.headers['x-studiobridge-key'] || ''
+  const denied = evaluate(request.socket.remoteAddress, room, String(sentKey))
+  const headers = { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+  if (denied) {
+    const [status, code] = denied
+    console.warn(`[sync] 접속 확인 거절 ${status} ${code} from=${request.socket.remoteAddress}`)
+    response.writeHead(status, headers)
+    response.end(JSON.stringify({ ok: false, code }))
+    return
+  }
+  response.writeHead(200, headers)
+  response.end(JSON.stringify({ ok: true }))
+}
+
+const server = http.createServer((request, response) => {
+  const url = new URL(request.url || '/', 'http://sync.local')
+  if (url.pathname === '/access') {
+    handleAccess(request, response, url)
+    return
+  }
   response.writeHead(200, { 'Content-Type': 'text/plain' })
   response.end('okay')
 })

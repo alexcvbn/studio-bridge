@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type * as Y from 'yjs'
 import { LOCAL_MEMO_ORIGIN, applyMemoEdit, getBoardSync, type SyncStatus } from './boardSync'
+import { describeSync, type AccessState } from './syncAccess'
 
 // 남이 쓴 변경이 내 커서 앞쪽에 들어오거나 지워졌을 때 커서를 같은 글자 옆에 두도록 옮긴다.
 function shiftIndex(index: number, delta: Y.YTextEvent['delta']): number {
@@ -19,10 +20,11 @@ function shiftIndex(index: number, delta: Y.YTextEvent['delta']): number {
   return index + shift
 }
 
-export function MemoPanel({ status }: { status: SyncStatus }) {
+export function MemoPanel({ status, access }: { status: SyncStatus; access: AccessState }) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const pendingSelection = useRef<[number, number] | null>(null)
   const [value, setValue] = useState(() => getBoardSync().memo.toString())
+  const sync = describeSync(status, access)
 
   // 공유 메모가 바뀌면 입력창을 맞춘다. 내가 방금 입력한 변경은 이미 화면에 있어 건너뛴다.
   useLayoutEffect(() => {
@@ -66,11 +68,9 @@ export function MemoPanel({ status }: { status: SyncStatus }) {
         placeholder="함께 보는 메모를 적어 보세요"
         style={{ flex: 1, minHeight: 200, resize: 'none' }}
       />
-      {status !== 'connected' && (
+      {sync.tone !== 'ok' && sync.note && (
         <span role="status" style={{ color: '#d32f2f', fontSize: 12 }}>
-          {status === 'connecting'
-            ? '서버에 연결하는 중입니다. 지금 쓴 내용은 연결되면 반영됩니다.'
-            : '연결이 끊겼습니다. 쓴 내용은 이 화면에 남고 다시 연결되면 반영됩니다.'}
+          {sync.note}
         </span>
       )}
     </aside>
