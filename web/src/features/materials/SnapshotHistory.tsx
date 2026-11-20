@@ -78,7 +78,9 @@ export function SnapshotHistory({ materialId, viewingId, onView }: SnapshotHisto
               >
                 {r.is_current ? '현재' : `이전 ${records.length - i}번째`} ·{' '}
                 {new Date(r.received_at).toLocaleString()} · {r.name} ·{' '}
-                {r.raw_code.split('\n').length}줄
+                {r.raw_code.split('\n').length}줄 ·{' '}
+                {/* 수집본마다 요청 ID가 다르다: 같은 요청의 재시도는 새 줄을 만들지 않는다 (07회차 #28) */}
+                <span title={`request_id ${r.request_id}`}>요청 {r.request_id.slice(0, 8)}</span>
               </button>
             </li>
           ))}

@@ -1,4 +1,4 @@
-"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02~06회차 #8·#16·#20·#24)."""
+"""D 담당: 받은 자료(material)와 수집본(snapshot) 저장·조회 API (02~07회차 #8·#16·#20·#24·#28)."""
 
 import uuid
 from datetime import UTC, datetime
@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import ForeignKey, String, Text, func, select
+from sqlalchemy import ForeignKey, String, Text, func, literal_column, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
@@ -67,11 +67,14 @@ def error(status: int, code: str, message: str) -> HTTPException:
 
 
 def snapshots_newest_first(material_id: str):
-    """한 자료의 수집본을 최근 것부터 고르는 조회문. 현재 수집본 판정과 기록 목록이 같은 순서를 쓴다."""
+    """한 자료의 수집본을 최근 것부터 고르는 조회문. 현재 수집본 판정과 기록 목록이 같은 순서를 쓴다.
+
+    받은 시각이 같으면 DB에 먼저 들어간 순서(rowid)로 가른다. 그래서 '현재 수집본'이 항상 하나로 정해진다. (07회차 #28)
+    """
     return (
         select(Snapshot)
         .where(Snapshot.material_id == material_id)
-        .order_by(Snapshot.received_at.desc())
+        .order_by(Snapshot.received_at.desc(), literal_column("snapshots.rowid").desc())
     )
 
 
@@ -175,8 +178,25 @@ def save_new(db: Session, body: CollectIn) -> dict:
     }
 
 
+# 비어 있으면 안 되는 값과 그때 돌려줄 오류 코드 (07회차 #28)
+# request_id가 비면 서로 다른 전송이 '같은 요청의 재시도'로 잘못 묶이고,
+# source_uid가 비면 서로 다른 스크립트가 한 자료로 섞인다. 그래서 저장 전에 거절한다.
+REQUIRED_TEXT = {
+    "source_uid": ("source_uid_required", "source_uid가 비어 있습니다"),
+    "request_id": ("request_id_required", "request_id가 비어 있습니다"),
+}
+
+
+def check_required(body: CollectIn) -> None:
+    """공백만 있는 값도 빈 값으로 본다. 값 자체는 고치지 않고 받은 그대로 저장한다."""
+    for field, (code, message) in REQUIRED_TEXT.items():
+        if getattr(body, field).strip() == "":
+            raise error(422, code, message)
+
+
 @router.post("/collect", status_code=201)
 def collect(body: CollectIn, response: Response, db: Session = Depends(get_db)):
+    check_required(body)
     if len(body.raw_code.encode("utf-8")) > MAX_RAW_BYTES:
         raise error(413, "raw_code_too_large", "코드 원문이 256KiB를 넘습니다")
 

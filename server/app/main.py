@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import access, context, materials
-from app.db import init_db
+from app.db import DATABASE_PATH, init_db, table_counts
 from app.features import router as features_router
 
 # 접속 거절 기록(키 값 없음)이 uvicorn 로그와 같이 보이게 한다.
@@ -17,10 +17,21 @@ settings = access.load_settings()
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    init_db()
+    created = init_db()
     logging.getLogger("studio_bridge.access").info(
         "실행 모드: %s", "공유 (팀 키 필요)" if settings.mode == "shared" else "로컬 (이 PC만)"
     )
+    # 재시작 뒤 "데이터가 사라졌다"의 흔한 원인은 다른 DB 파일을 연 것이다.
+    # 어느 파일을 열었고 무엇이 들어 있는지 시작할 때 남긴다. 팀 키는 남기지 않는다. (08회차 #29)
+    db_log = logging.getLogger("studio_bridge.db")
+    if created:
+        db_log.warning(
+            "DB 새로 만듦: %s — 이전 데이터가 보여야 한다면 STUDIO_BRIDGE_DB 값과 실행 폴더를 확인하세요.",
+            DATABASE_PATH,
+        )
+    else:
+        counts = " ".join(f"{name}={count}" for name, count in table_counts().items())
+        db_log.info("DB 기존 파일: %s (%s)", DATABASE_PATH, counts)
     yield
 
 
