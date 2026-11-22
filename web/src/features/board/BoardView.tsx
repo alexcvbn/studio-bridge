@@ -16,6 +16,8 @@ import type { BoardCard, CardKind } from './types'
 
 const KIND_TEXT: Record<CardKind, string> = { material: '자료', feature: '기능' }
 
+const MISSING_RETRY_MS = 5000
+
 export interface BoardViewProps {
   onOpenFeature?: (featureId: string) => void
 }
@@ -71,10 +73,11 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
     }
   }, [])
 
+  // 이미 읽은 목록이 있으면 다시 읽다 실패해도 그 목록을 그대로 둔다(카드를 갑자기 "확인 실패"로 바꾸지 않는다).
   const loadTargets = useCallback(() => {
     fetchTargets().then(
       (targets) => setTargetState({ phase: 'ready', targets }),
-      () => setTargetState({ phase: 'error' }),
+      () => setTargetState((prev) => (prev.phase === 'ready' ? prev : { phase: 'error' })),
     )
   }, [])
 
@@ -82,6 +85,34 @@ export function BoardView({ onOpenFeature }: BoardViewProps) {
   useEffect(() => {
     loadTargets()
   }, [loadTargets])
+
+  // 보드를 연 뒤에 팀원이 보낸 자료·만든 기능은 처음 읽은 목록에 없다. 창으로 돌아오면 다시 읽는다.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadTargets()
+    }
+    window.addEventListener('focus', loadTargets)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', loadTargets)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [loadTargets])
+
+  // 목록에 없는 카드가 있는 동안에는 몇 초마다 다시 읽어, 방금 만든 대상이면 제목이 나타나게 한다.
+  const hasMissingCard =
+    targetState.phase === 'ready' &&
+    nodes.some(
+      (n) =>
+        !targetState.targets.some(
+          (t) => t.kind === n.data.kind && t.target_id === n.data.targetId,
+        ),
+    )
+  useEffect(() => {
+    if (!hasMissingCard) return
+    const timer = setInterval(loadTargets, MISSING_RETRY_MS)
+    return () => clearInterval(timer)
+  }, [hasMissingCard, loadTargets])
 
   const retryTargets = () => {
     setTargetState({ phase: 'loading' })
