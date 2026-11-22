@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Background,
   BackgroundVariant,
+  ConnectionLineType,
+  ConnectionMode,
   MarkerType,
   Position,
   ReactFlow,
   applyNodeChanges,
+  type Edge,
+  type EdgeChange,
+  type EdgeTypes,
   type Node,
   type NodeChange,
 } from '@xyflow/react'
@@ -20,18 +25,21 @@ import {
   Trash2,
   Workflow,
   Link2,
+  Spline,
   UserRound,
   X,
 } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
-import { addCard, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
+import { addCard, addConnection, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
 import { fetchDecisions, fetchLinkedMaterials } from '../features/featuresApi'
 import { CardPicker } from './CardPicker'
 import { CanvasNavigation } from './CanvasNavigation'
+import { ConnectionTools } from './ConnectionTools'
+import { RelationEdge } from './RelationEdge'
 import { MemoPanel } from './MemoPanel'
 import { describeSync, type AccessState } from './syncAccess'
 import type { TargetInfo } from './targetsApi'
-import type { CardKind } from './types'
+import type { BoardConnection, CardKind } from './types'
 
 export interface BoardViewProps {
   targets: TargetInfo[]
@@ -45,6 +53,9 @@ export interface BoardViewProps {
 type CardNode = Node<{ kind: CardKind; targetId: string }>
 type Context = { links?: string[]; decision?: string }
 const key = (kind: CardKind, id: string) => kind + ':' + id
+// 렌더마다 새로 만들면 React Flow가 경고하므로 밖에 둔다.
+const edgeTypes: EdgeTypes = { relation: RelationEdge }
+const readConnections = () => [...getBoardSync().connections.values()]
 
 function syncNodes(prev: CardNode[]): CardNode[] {
   const { cards, removedCardIds } = getBoardSync()
@@ -76,16 +87,21 @@ export function BoardView({
   const [tool, setTool] = useState<'select' | 'hand'>('select')
   const [memoOpen, setMemoOpen] = useState(false)
   const [contexts, setContexts] = useState<Record<string, Context>>({})
+  const [connections, setConnections] = useState<BoardConnection[]>(readConnections)
+  const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
   useEffect(() => {
     const sync = getBoardSync()
     const apply = () => setNodes(syncNodes)
+    const applyConnections = () => setConnections(readConnections())
     sync.cards.observe(apply)
     sync.removedCardIds.observe(apply)
+    sync.connections.observe(applyConnections)
     const statusOff = sync.subscribeStatus(setStatus)
     const accessOff = sync.subscribeAccess(setAccess)
     return () => {
       sync.cards.unobserve(apply)
       sync.removedCardIds.unobserve(apply)
+      sync.connections.unobserve(applyConnections)
       statusOff()
       accessOff()
     }
@@ -118,6 +134,12 @@ export function BoardView({
   const handleChanges = useCallback((changes: NodeChange<CardNode>[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev))
     for (const c of changes) if (c.type === 'position' && c.position) moveCard(c.id, c.position)
+  }, [])
+  // 관계선 선택만 화면 상태로 둔다. 선 자체는 공유 보드의 connections에서 그린다.
+  const handleEdgeChanges = useCallback((changes: EdgeChange[]) => {
+    for (const c of changes)
+      if (c.type === 'select')
+        setSelectedConnection((cur) => (c.selected ? c.id : cur === c.id ? null : cur))
   }, [])
   const catalog = new Map(targets.map((t) => [key(t.kind, t.target_id), t]))
   const resolved = (n: CardNode) => catalog.get(key(n.data.kind, n.data.targetId))
@@ -165,7 +187,19 @@ export function BoardView({
     }
   })
   const materials = nodes.filter((n) => n.data.kind === 'material')
-  const edges = nodes
+  const nodeIds = new Set(nodes.map((n) => n.id))
+  // 사용자가 직접 이은 관계선. 양 끝 카드가 모두 보드에 있을 때만 그린다.
+  const visibleConnections = connections.filter((c) => nodeIds.has(c.source) && nodeIds.has(c.target))
+  const relationEdges: Edge[] = visibleConnections.map((c) => ({
+    id: c.connection_id,
+    type: 'relation',
+    source: c.source,
+    target: c.target,
+    selected: c.connection_id === selectedConnection,
+    data: { relation: c.relation, label: c.label },
+  }))
+  // 서버에서 읽은 기능-자료 연결은 점선으로 따로 그린다(고를 수 없음).
+  const linkEdges: Edge[] = nodes
     .filter((n) => n.data.kind === 'feature')
     .flatMap((f) =>
       materials
@@ -175,9 +209,20 @@ export function BoardView({
           source: f.id,
           target: m.id,
           selectable: false,
+          className: 'auto-link',
           markerEnd: { type: MarkerType.ArrowClosed, color: '#8c82ac', width: 14, height: 14 },
         })),
     )
+  const edges = [...linkEdges, ...relationEdges]
+  const activeConnection = visibleConnections.find((c) => c.connection_id === selectedConnection)
+  const titleOf = (cardId: string) => {
+    const n = nodes.find((node) => node.id === cardId)
+    return (n && resolved(n)?.title) ?? '카드'
+  }
+  function connect(source: string, target: string) {
+    const made = addConnection(source, target)
+    if (made) setSelectedConnection(made.connection_id)
+  }
   const selectedNodes = nodes.filter((n) => n.selected)
   const selected = selectedNodes.length === 1 ? selectedNodes[0] : undefined
   const sync = describeSync(status, access)
@@ -192,7 +237,22 @@ export function BoardView({
           nodes={display}
           edges={edges}
           onNodesChange={handleChanges}
-          nodesConnectable={false}
+          onEdgesChange={handleEdgeChanges}
+          edgeTypes={edgeTypes}
+          nodesConnectable={tool === 'select'}
+          connectionMode={ConnectionMode.Loose}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionRadius={36}
+          isValidConnection={(c) => c.source !== c.target}
+          onConnect={(c) => connect(c.source, c.target)}
+          onConnectEnd={(event, state) => {
+            // 연결점이 아니라 카드 아무 곳에나 놓아도 잇는다.
+            if (state.isValid || !state.fromNode) return
+            const point = 'changedTouches' in event ? event.changedTouches[0] : event
+            const card = document.elementFromPoint(point.clientX, point.clientY)?.closest('.react-flow__node')
+            const id = card?.getAttribute('data-id')
+            if (id) connect(state.fromNode.id, id)
+          }}
           deleteKeyCode={null}
           minZoom={0.25}
           nodesDraggable={tool === 'select'}
@@ -200,7 +260,10 @@ export function BoardView({
           panOnDrag={tool === 'hand' ? true : [1, 2]}
           panOnScroll
           selectionOnDrag={tool === 'select'}
-          onPaneClick={() => setAdding(false)}
+          onPaneClick={() => {
+            setAdding(false)
+            setSelectedConnection(null)
+          }}
           defaultViewport={{ x: 18, y: 28, zoom: 0.95 }}
           onNodeClick={(_, n) => {
             if (tool === 'select' && resolved(n)) onOpen(n.data.kind, n.data.targetId)
@@ -221,6 +284,19 @@ export function BoardView({
             </button>
           </div>
         )}
+        {activeConnection && tool === 'select' && selectedNodes.length === 0 && (
+          <ConnectionTools
+            key={activeConnection.connection_id}
+            connection={activeConnection}
+            fromTitle={titleOf(activeConnection.source)}
+            toTitle={titleOf(activeConnection.target)}
+          />
+        )}
+        {nodes.length >= 2 && visibleConnections.length === 0 && tool === 'select' && (
+          <p className="connect-hint">
+            <Spline /> 카드 옆의 동그라미를 끌어 다른 카드 위에 놓으면 관계선으로 이어집니다
+          </p>
+        )}
         {selected && tool === 'select' && (
           <div className="selection-tools">
             {resolved(selected) && (
@@ -240,6 +316,10 @@ export function BoardView({
         <span data-testid="card-count">
           <Layers2 />
           카드 {nodes.length}개
+        </span>
+        <span data-testid="connection-count">
+          <Spline />
+          연결 {visibleConnections.length}개
         </span>
         <span className={'sync-line ' + sync.tone} data-testid="sync-status">
           <i />

@@ -1075,3 +1075,138 @@
     font-size: 20px;
   }
 }
+
+/* 카드 관계선 (DB 테이블 관계처럼) */
+.canvas .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  transition: scale 0.12s;
+}
+.canvas .canvas-card:hover .react-flow__handle,
+.canvas .react-flow__handle.connectingfrom,
+.canvas .react-flow__handle.valid {
+  scale: 1.35;
+  background: var(--card-band);
+}
+.canvas[data-tool='hand'] .react-flow__handle {
+  visibility: hidden;
+}
+.canvas .react-flow__edge.auto-link .react-flow__edge-path {
+  stroke: #b3abc8;
+  stroke-dasharray: 5 4;
+}
+.canvas .react-flow__edge-path.relation-path {
+  stroke: #65458b;
+  stroke-width: 2;
+}
+.canvas .react-flow__edge-path.relation-path.selected {
+  stroke: #8960d2;
+  stroke-width: 3;
+}
+.canvas .react-flow__connection-path {
+  stroke: #8960d2;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.relation-chip,
+.relation-end {
+  position: absolute;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.relation-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  background: #fff;
+  border: 1px solid #cdbfe0;
+  border-radius: 999px;
+  color: #47335d;
+  box-shadow: 0 1px 3px #38274714;
+}
+.relation-chip b {
+  font-weight: 700;
+  color: #65458b;
+}
+.relation-chip span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.relation-chip.selected {
+  border-color: #8960d2;
+  outline: 2px solid #e4d8f7;
+}
+.relation-end {
+  font-weight: 700;
+  color: #65458b;
+  background: #fffffff0;
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+.connection-tools {
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: min(520px, calc(100% - 40px));
+  padding: 4px 6px;
+}
+.connection-ends {
+  font-size: 11px;
+  color: var(--quiet);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.relation-picker {
+  display: inline-flex;
+  border: 1px solid #d9d4df;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.connection-tools .relation-picker button {
+  border-radius: 0;
+  padding: 3px 8px;
+  font-weight: 650;
+}
+.connection-tools .relation-picker button[aria-checked='true'] {
+  background: var(--soft);
+  color: var(--blue);
+}
+.connection-tools input {
+  width: 140px;
+  font-size: 12px;
+  padding: 3px 7px;
+}
+.connect-hint {
+  position: absolute;
+  top: 116px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  font-size: 12px;
+  color: var(--quiet);
+  background: #ffffffe8;
+  border: 1px solid #e3dfe8;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 4;
+  white-space: nowrap;
+}
+.connect-hint svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 900px) {
+  .connect-hint {
+    display: none;
+  }
+}
