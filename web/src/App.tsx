@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
-  Blocks,
-  ChevronRight,
+  X,
   Code2,
   FileStack,
   FolderTree,
@@ -33,6 +32,8 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState('')
   const [pane, setPane] = useState<Pane>('board')
+  const [libraryOpen, setLibraryOpen] = useState(true)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [saving, setSaving] = useState(false)
@@ -46,8 +47,6 @@ export default function App() {
         if (!alive) return
         setTargets(items)
         setLoad('ready')
-        const first = items.find((t) => t.kind === 'material') ?? items[0]
-        if (first) setSelection((prev) => prev ?? { kind: first.kind, id: first.target_id })
       },
       () => {
         if (alive) setLoad('error')
@@ -60,6 +59,7 @@ export default function App() {
 
   function open(kind: CardKind, id: string) {
     setSelection({ kind, id })
+    setInspectorOpen(true)
     setPane('inspector')
   }
 
@@ -154,17 +154,18 @@ export default function App() {
   }
 
   return (
-    <div className="shell" data-pane={pane}>
+    <div className="shell" data-pane={pane} data-library={libraryOpen} data-inspector={inspectorOpen}>
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">
-            <Workflow />
-          </span>
-          Studio Bridge
+        <div className="board-bar">
+          <div className="brand">
+            <span className="brand-mark">
+              <Workflow />
+            </span>
+            Studio Bridge
+          </div>
+          <span className="bar-divider" />
+          <h1>협업 보드</h1>
         </div>
-        <span className="crumb">
-          <ChevronRight /> 프로젝트 작업공간
-        </span>
         <ConnectionPanel />
       </header>
       <nav className="mobile-nav" aria-label="작업 영역">
@@ -181,12 +182,22 @@ export default function App() {
         ))}
       </nav>
       <main className="workspace">
-        <aside className="explorer">
+        <aside className="explorer panel" aria-label="카드 라이브러리">
           <div className="pane-title">
             <FolderTree />
-            <h2>탐색기</h2>
+            <h2>카드 라이브러리</h2>
             <button className="icon-btn" aria-label="작업공간 새로고침" onClick={refresh}>
               <RefreshCw />
+            </button>
+            <button
+              className="icon-btn close-panel"
+              aria-label="라이브러리 닫기"
+              onClick={() => {
+                setLibraryOpen(false)
+                setPane('board')
+              }}
+            >
+              <X />
             </button>
           </div>
           <div className="search-box">
@@ -212,18 +223,34 @@ export default function App() {
           load={load}
           revision={revision}
           onOpen={open}
+          libraryOpen={libraryOpen}
+          onLibrary={() => {
+            setLibraryOpen(!libraryOpen)
+            setPane('explorer')
+          }}
           onExplore={() => {
+            setLibraryOpen(true)
             setPane('explorer')
             setCreating(true)
           }}
         />
-        <aside className="inspector">
+        <aside className="inspector panel">
           <div className="pane-title">
             <PanelRight />
             <h2>상세 보기</h2>
             <span className="detail-type">
               {selection?.kind === 'feature' ? '기능' : selection ? '코드 자료' : ''}
             </span>
+            <button
+              className="icon-btn close-panel"
+              aria-label="상세 닫기"
+              onClick={() => {
+                setInspectorOpen(false)
+                setPane('board')
+              }}
+            >
+              <X />
+            </button>
           </div>
           <div className="inspector-scroll">
             <div hidden={selection?.kind !== 'feature'}>
@@ -252,9 +279,6 @@ export default function App() {
           </div>
         </aside>
       </main>
-      <footer className="statusbar">
-        <Blocks /> Studio Bridge <span>Roblox Studio 작업공간</span>
-      </footer>
     </div>
   )
 }

@@ -14,8 +14,8 @@
   -webkit-font-smoothing: antialiased;
   --line: #dce2e9;
   --quiet: #677588;
-  --blue: #345cda;
-  --soft: #edf2ff;
+  --blue: #65458b;
+  --soft: #f0eafa;
 }
 * {
   box-sizing: border-box;
@@ -58,7 +58,7 @@ textarea {
   max-width: 100%;
 }
 :focus-visible {
-  outline: 2px solid #507bf3;
+  outline: 2px solid #8b61ba;
   outline-offset: 2px;
 }
 h1,
@@ -81,13 +81,13 @@ button.primary {
   gap: 5px;
   background: var(--blue);
   color: white;
-  border: 1px solid #2b51c9;
+  border: 1px solid #543776;
   border-radius: 7px;
   box-shadow: 0 1px 2px #17286724;
   padding: 6px 11px;
 }
 button.primary:hover:not(:disabled) {
-  background: #274cc5;
+  background: #513375;
 }
 button.primary svg {
   width: 16px;
@@ -98,5 +98,5 @@ summary {
 }
 button[aria-pressed='true'] {
   background: var(--soft);
-  color: #294db6;
+  color: #543974;
 }
