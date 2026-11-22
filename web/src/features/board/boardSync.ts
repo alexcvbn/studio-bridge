@@ -12,8 +12,8 @@ const ROOM = 'studio-bridge/main'
 const PROBE_DELAY_MS = 2000
 const PROBE_RETRY_MS = 5000
 
-// 새 카드는 카드 폭(200px)에 맞춘 격자에 놓아 서로 겹치지 않게 한다.
-const GRID = { cols: 4, w: 240, h: 110, x: 40, y: 40 }
+// 새 카드만 배치한다. 이전 보드에 저장된 위치는 그대로 사용한다.
+const GRID = { cols: 2, w: 274, h: 216, x: 36, y: 36 }
 
 export interface BoardSync {
   // card_id -> 카드. 이동은 해당 카드 항목만 덮어쓴다.
@@ -132,12 +132,22 @@ if (import.meta.hot) {
   })
 }
 
+// 로컬·HTTPS와 공유 모드의 HTTP LAN 접속에서 모두 쓸 수 있는 카드 식별자.
+function newCardId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-')
+}
+
 // 항상 새 card_id를 만든다. 같은 자료를 다시 추가하면 같은 target_id의 새 카드가 생긴다.
 export function addCard(kind: CardKind, targetId: string): BoardCard {
   const { cards, removedCardIds } = getBoardSync()
   const n = cards.size
-  let cardId = crypto.randomUUID()
-  while (removedCardIds.has(cardId)) cardId = crypto.randomUUID()
+  let cardId = newCardId()
+  while (cards.has(cardId) || removedCardIds.has(cardId)) cardId = newCardId()
   const card: BoardCard = {
     card_id: cardId,
     kind,
