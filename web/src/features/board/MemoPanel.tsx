@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { NotebookPen } from 'lucide-react'
 import type * as Y from 'yjs'
 import { LOCAL_MEMO_ORIGIN, applyMemoEdit, getBoardSync, type SyncStatus } from './boardSync'
 import { describeSync, type AccessState } from './syncAccess'
@@ -53,9 +54,9 @@ export function MemoPanel({ status, access }: { status: SyncStatus; access: Acce
   }, [value])
 
   return (
-    <aside style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <aside className="memo">
       <label htmlFor="board-memo">
-        <strong>공동 메모</strong>
+        <NotebookPen/><strong>공동 메모</strong>
       </label>
       <textarea
         id="board-memo"
@@ -66,7 +67,6 @@ export function MemoPanel({ status, access }: { status: SyncStatus; access: Acce
           applyMemoEdit(e.target.value)
         }}
         placeholder="함께 보는 메모를 적어 보세요"
-        style={{ flex: 1, minHeight: 200, resize: 'none' }}
       />
       {sync.tone !== 'ok' && sync.note && (
         <span role="status" style={{ color: '#d32f2f', fontSize: 12 }}>

@@ -19,9 +19,9 @@ React Flow 기반 보드. 카드 위치는 `sync/` 서버(Yjs)로 다른 브라�
 - 제목은 카드에 저장하지 않는다. 서버의 자료·기능 목록에서 `target_id`로 찾아 그린다.
 
 ## 카드 표시
-- 정상: 제목, 종류(자료/기능), `target_id` 앞 8자리.
-- 서버에 없는 ID: "찾을 수 없음"(빨간 테두리). 기능 열기 버튼은 숨긴다.
-- 목록을 읽지 못함(서버 꺼짐 등): "확인 실패"와 "다시 시도" 버튼. 없는 ID와 구분해서 표시한다.
+- 기능 카드는 상태·담당자와 현재 결정을, 자료 카드는 스크립트 종류와 경로를 표시한다.
+- 기능에 연결한 자료가 같은 보드에 있으면 두 카드를 선으로 잇는다. 관계와 결정은 API에서 읽고 카드 문서에는 복제하지 않는다.
+- 카드를 누르면 상세 보기가 열린다. 대상이 사라진 경우에는 "찾을 수 없음", 목록 요청이 실패하면 "확인 실패"로 표시한다. 탐색기의 새로고침 버튼으로 다시 조회할 수 있다.
 
 ## 카드 추가·제거 (04회차)
 ```ts
@@ -29,27 +29,13 @@ import { addMaterialCard } from './features/board'
 addMaterialCard(materialId) // 새 card_id의 자료 카드를 만든다. 보드 화면이 숨겨져 있어도 동작한다.
 ```
 - 같은 자료를 다시 추가하면 같은 `target_id`의 **새 카드**가 생긴다(중복 허용).
-- "카드 제거 (보드에서만)"는 보드 상태에서만 지운다. 서버의 자료·기능·결정은 그대로이며 서버에 삭제 요청을 보내지 않는다.
+- 선택한 카드의 휴지통 버튼는 보드 상태에서만 지운다. 서버의 자료·기능·결정은 그대로이며 서버에 삭제 요청을 보내지 않는다.
 - 제거한 `card_id`는 `removedCardIds`에 남겨, 다른 브라우저의 늦은 이동 이벤트가 카드를 되살리지 못하게 한다.
-- 배치의 영구 저장은 06회차 범위다. 지금은 동기화 서버가 켜져 있는 동안만 유지된다.
+- 보드 배치와 공동 메모는 동기화 서버의 LevelDB에 저장된다.
 
-## 연결 방법 (A·C·D에게)
-보드 쪽은 준비돼 있고, 아래 두 파일에 한 줄씩 연결하면 이슈 #14의 장면이 완성된다.
+## 탐색기와 상세 보기
 
-**D — `MaterialLibrary.tsx`**: `onAddMaterial?: (materialId: string) => void` prop을 추가하고, 선택한 자료의 "보드에 추가" 버튼에서 `onAddMaterial(selectedId)`를 호출한다.
-
-**A — `App.tsx`**: 조립만 하면 된다.
-```tsx
-import { BoardView, addMaterialCard } from './features/board'
-
-const [openFeatureId, setOpenFeatureId] = useState<string | null>(null)
-
-<BoardView onOpenFeature={(id) => { setOpenFeatureId(id); setMenu('features') }} />
-<FeatureView openFeatureId={openFeatureId} onSelectFeature={setOpenFeatureId} />
-<MaterialLibrary onAddMaterial={addMaterialCard} />
-```
-- C의 `FeatureView`는 이미 `openFeatureId`를 받는다. 기능 카드의 `target_id`가 상세의 기능 ID와 같다.
-- `onOpenFeature(featureId)`: 보드에서 기능 카드를 선택하고 "기능 열기"를 누르면 호출된다.
+`App.tsx`는 탐색기와 보드가 사용할 기능·자료 목록과 선택 항목을 관리한다. 보드의 `onOpen(kind, id)`와 탐색기의 항목 선택은 같은 상세 보기를 연다. 기능에 연결된 자료 이름을 누르면 해당 코드 원문과 수집본 기록을 확인할 수 있다.
 
 ## 공유 규칙 (05회차)
 - 이동은 `moveCard(cardId, position)`로 해당 카드의 `position`만 쓴다. 위치가 그대로이거나 제거된 카드면 아무것도 쓰지 않는다.

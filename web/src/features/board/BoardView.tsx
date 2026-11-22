@@ -1,232 +1,239 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Background,
+  BackgroundVariant,
   Controls,
+  Position,
   ReactFlow,
   applyNodeChanges,
   type Node,
   type NodeChange,
 } from '@xyflow/react'
+import { Code2, Layers2, LayoutGrid, Plus, Trash2, Workflow } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
 import { addCard, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
+import { fetchDecisions, fetchLinkedMaterials } from '../features/featuresApi'
 import { MemoPanel } from './MemoPanel'
 import { describeSync, type AccessState } from './syncAccess'
-import { fetchTargets, type TargetInfo } from './targetsApi'
-import type { BoardCard, CardKind } from './types'
-
-const KIND_TEXT: Record<CardKind, string> = { material: '자료', feature: '기능' }
+import type { TargetInfo } from './targetsApi'
+import type { CardKind } from './types'
 
 export interface BoardViewProps {
-  onOpenFeature?: (featureId: string) => void
+  targets: TargetInfo[]
+  load: 'loading' | 'ready' | 'error'
+  revision: number
+  onOpen: (kind: CardKind, id: string) => void
+  onExplore: () => void
 }
-
-type TargetState =
-  | { phase: 'loading' }
-  | { phase: 'error' }
-  | { phase: 'ready'; targets: TargetInfo[] }
-
 type CardNode = Node<{ kind: CardKind; targetId: string }>
+type Context = { links: string[]; decision?: string }
+const key = (kind: CardKind, id: string) => kind + ':' + id
 
-const key = (kind: CardKind, id: string) => `${kind}:${id}`
-
-function cardToNode(card: BoardCard): CardNode {
-  return {
-    id: card.card_id,
-    position: card.position,
-    data: { kind: card.kind, targetId: card.target_id },
-  }
-}
-
-// 공유 상태의 카드로 노드를 만든다. 기존 노드 객체는 유지하고 위치만 갱신하며, 제거된 카드는 그리지 않는다.
 function syncNodes(prev: CardNode[]): CardNode[] {
   const { cards, removedCardIds } = getBoardSync()
+  const existing = new Map(prev.map((n) => [n.id, n]))
   return [...cards.values()]
     .filter((card) => !removedCardIds.has(card.card_id))
-    .map((card) => {
-      const old = prev.find((n) => n.id === card.card_id)
-      return old ? { ...old, position: card.position } : cardToNode(card)
-    })
+    .map((card) => ({
+      ...existing.get(card.card_id),
+      id: card.card_id,
+      position: card.position,
+      data: { kind: card.kind, targetId: card.target_id },
+    }))
 }
 
-export function BoardView({ onOpenFeature }: BoardViewProps) {
-  // 노드 상태는 React Flow가 잰 크기·선택 정보를 보존하도록 그대로 들고 있는다.
+export function BoardView({ targets, load, revision, onOpen, onExplore }: BoardViewProps) {
   const [nodes, setNodes] = useState<CardNode[]>(() => syncNodes([]))
   const [status, setStatus] = useState<SyncStatus>('connecting')
   const [access, setAccess] = useState<AccessState>({ phase: 'unknown' })
-  const [targetState, setTargetState] = useState<TargetState>({ phase: 'loading' })
   const [pick, setPick] = useState('')
-
+  const [adding, setAdding] = useState(false)
+  const [contexts, setContexts] = useState<Record<string, Context>>({})
   useEffect(() => {
     const sync = getBoardSync()
     const apply = () => setNodes(syncNodes)
     sync.cards.observe(apply)
     sync.removedCardIds.observe(apply)
-    const unsubscribeStatus = sync.subscribeStatus(setStatus)
-    const unsubscribeAccess = sync.subscribeAccess(setAccess)
+    const statusOff = sync.subscribeStatus(setStatus)
+    const accessOff = sync.subscribeAccess(setAccess)
     return () => {
       sync.cards.unobserve(apply)
       sync.removedCardIds.unobserve(apply)
-      unsubscribeStatus()
-      unsubscribeAccess()
+      statusOff()
+      accessOff()
     }
   }, [])
-
-  const loadTargets = useCallback(() => {
-    fetchTargets().then(
-      (targets) => setTargetState({ phase: 'ready', targets }),
-      () => setTargetState({ phase: 'error' }),
-    )
-  }, [])
-
-  // 처음 상태가 이미 'loading'이라 effect에서는 요청만 보낸다.
+  const featureIds = JSON.stringify(
+    [...new Set(nodes.filter((n) => n.data.kind === 'feature').map((n) => n.data.targetId))].sort(),
+  )
   useEffect(() => {
-    loadTargets()
-  }, [loadTargets])
+    let alive = true
+    const ids: string[] = JSON.parse(featureIds)
+    Promise.all(
+      ids.map(async (id) => {
+        const [links, decisions] = await Promise.allSettled([fetchLinkedMaterials(id), fetchDecisions(id)])
+        return [
+          id,
+          {
+            links: links.status === 'fulfilled' ? links.value.map((m) => m.material_id) : [],
+            decision: decisions.status === 'fulfilled' ? decisions.value.current?.body : undefined,
+          },
+        ] as const
+      }),
+    ).then((entries) => {
+      if (alive) setContexts(Object.fromEntries(entries))
+    })
+    return () => {
+      alive = false
+    }
+  }, [featureIds, revision])
 
-  const retryTargets = () => {
-    setTargetState({ phase: 'loading' })
-    loadTargets()
-  }
-
-  const titles = new Map<string, string>()
-  if (targetState.phase === 'ready') {
-    for (const t of targetState.targets) titles.set(key(t.kind, t.target_id), t.title)
-  }
-
-  // 목록을 아직 못 읽었거나 읽기에 실패했으면 "없음"으로 단정하지 않는다.
-  const resolve = (kind: CardKind, id: string) => {
-    if (targetState.phase === 'loading') return { text: '불러오는 중', tone: 'wait' as const }
-    if (targetState.phase === 'error') return { text: '확인 실패', tone: 'fail' as const }
-    const title = titles.get(key(kind, id))
-    return title === undefined
-      ? { text: '찾을 수 없음', tone: 'missing' as const }
-      : { text: title, tone: 'ok' as const }
-  }
-
-  const nodesWithLabels: CardNode[] = nodes.map((n) => {
-    const { kind, targetId } = n.data
-    const r = resolve(kind, targetId)
+  const handleChanges = useCallback((changes: NodeChange<CardNode>[]) => {
+    setNodes((prev) => applyNodeChanges(changes, prev))
+    for (const c of changes) if (c.type === 'position' && c.position) moveCard(c.id, c.position)
+  }, [])
+  const catalog = new Map(targets.map((t) => [key(t.kind, t.target_id), t]))
+  const resolved = (n: CardNode) => catalog.get(key(n.data.kind, n.data.targetId))
+  const display = nodes.map((n) => {
+    const t = resolved(n)
+    const feature = n.data.kind === 'feature'
+    const decision = feature ? contexts[n.data.targetId]?.decision : undefined
     return {
       ...n,
-      className: `card-${r.tone}`,
-      style: {
-        width: 200,
-        border: r.tone === 'missing' || r.tone === 'fail' ? '2px solid #d32f2f' : '1px solid #888',
-        background: r.tone === 'ok' ? '#fff' : '#fdeceb',
-      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      className: 'canvas-card ' + n.data.kind,
       data: {
         ...n.data,
         label: (
-          <div>
-            <strong>{r.text}</strong>
-            <div style={{ fontSize: 11 }}>
-              {KIND_TEXT[kind]} · {targetId.slice(0, 8)}
+          <>
+            <div className="card-top">
+              <span className={'type-icon ' + n.data.kind}>{feature ? <Layers2 /> : <Code2 />}</span>
+              <span>{feature ? '기능' : '코드 자료'}</span>
+              <small>{t?.badge}</small>
             </div>
-          </div>
+            <strong>
+              {t?.title ??
+                (load === 'ready' ? '찾을 수 없음' : load === 'error' ? '확인 실패' : '불러오는 중…')}
+            </strong>
+            {decision && (
+              <div className="decision-preview">
+                <span>현재 결정</span>
+                <p>{decision}</p>
+              </div>
+            )}
+            <div className="card-desc" title={t?.detail}>
+              {feature && t?.detail !== '담당 미지정' && '담당 · '}
+              {t?.detail ?? n.data.targetId.slice(0, 8)}
+            </div>
+          </>
         ),
       },
-    } as CardNode
-  })
-
-  const handleNodesChange = useCallback((changes: NodeChange<CardNode>[]) => {
-    setNodes((prev) => applyNodeChanges(changes, prev))
-    // 이동한 카드의 위치만 공유 상태에 반영한다.
-    for (const change of changes) {
-      if (change.type !== 'position' || !change.position) continue
-      // 같은 위치이거나 제거된 카드의 이동은 공유 상태에 쓰지 않는다.
-      moveCard(change.id, change.position)
     }
-  }, [])
-
-  const handleAdd = () => {
-    if (targetState.phase !== 'ready' || !pick) return
-    const target = targetState.targets.find((t) => key(t.kind, t.target_id) === pick)
-    if (!target) return
-    addCard(target.kind, target.target_id)
-  }
-
-  // 보드에서만 제거한다. 서버의 자료·기능은 그대로 남는다.
-  const handleRemove = (cardId: string) => {
-    removeCard(cardId)
-  }
-
+  })
+  const materials = nodes.filter((n) => n.data.kind === 'material')
+  const edges = nodes
+    .filter((n) => n.data.kind === 'feature')
+    .flatMap((f) =>
+      materials
+        .filter((m) => contexts[f.data.targetId]?.links.includes(m.data.targetId))
+        .map((m) => ({
+          id: f.id + ':' + m.id,
+          source: f.id,
+          target: m.id,
+          selectable: false,
+        })),
+    )
+  const selected = nodes.find((n) => n.selected)
   const sync = describeSync(status, access)
-  const selectedNode = nodes.find((n) => n.selected)
-  const selected = selectedNode && {
-    card_id: selectedNode.id,
-    ...selectedNode.data,
+  function add() {
+    const t = catalog.get(pick)
+    if (t) {
+      addCard(t.kind, t.target_id)
+      setAdding(false)
+    }
   }
-  const canOpen =
-    selected?.kind === 'feature' &&
-    onOpenFeature &&
-    resolve('feature', selected.targetId).tone === 'ok'
-
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <select
-          aria-label="추가할 자료 또는 기능"
-          value={pick}
-          onChange={(e) => setPick(e.target.value)}
-          disabled={targetState.phase !== 'ready'}
-        >
-          <option value="">
-            {targetState.phase === 'ready' ? '추가할 항목 선택' : '목록을 불러오지 못했습니다'}
-          </option>
-          {targetState.phase === 'ready' &&
-            targetState.targets.map((t) => (
-              <option key={key(t.kind, t.target_id)} value={key(t.kind, t.target_id)}>
-                [{KIND_TEXT[t.kind]}] {t.title} ({t.target_id.slice(0, 8)})
-              </option>
-            ))}
-        </select>
-        <button type="button" onClick={handleAdd} disabled={!pick}>
-          카드 추가
+    <section className="board-pane">
+      <div className="board-title">
+        <div className="board-icon">
+          <LayoutGrid />
+        </div>
+        <h1>협업 보드</h1>
+        <span className="count" data-testid="card-count">
+          카드 {nodes.length}개
+        </span>
+        <button className="primary" aria-expanded={adding} onClick={() => setAdding(!adding)}>
+          <Plus /> 카드 추가
         </button>
-        {targetState.phase === 'error' && (
-          <>
-            <span role="alert" style={{ color: '#d32f2f' }}>
-              서버에서 자료·기능 목록을 읽지 못했습니다.
-            </span>
-            <button type="button" onClick={retryTargets}>
-              다시 시도
+        {adding && (
+          <div className="add-pop">
+            <label htmlFor="target">보드에 추가할 항목</label>
+            <select
+              id="target"
+              aria-label="추가할 자료 또는 기능"
+              value={pick}
+              onChange={(e) => setPick(e.target.value)}
+            >
+              <option value="">기능 또는 자료 선택</option>
+              {targets.map((t) => (
+                <option key={key(t.kind, t.target_id)} value={key(t.kind, t.target_id)}>
+                  {t.kind === 'feature' ? '기능' : '자료'} · {t.title}
+                </option>
+              ))}
+            </select>
+            <button className="primary" disabled={!catalog.has(pick)} onClick={add}>
+              추가
             </button>
-          </>
-        )}
-        <span data-testid="sync-status" style={{ color: sync.tone === 'fail' ? '#d32f2f' : undefined }}>
-          {sync.text}
-        </span>
-        <span data-testid="card-count">카드 {nodes.length}개</span>
-        <span data-testid="selected-card">
-          선택:{' '}
-          {selected
-            ? `카드 ${selected.card_id.slice(0, 8)} → ${KIND_TEXT[selected.kind]} ${selected.targetId.slice(0, 8)}`
-            : '없음'}
-        </span>
-        {canOpen && selected && (
-          <button type="button" onClick={() => onOpenFeature(selected.targetId)}>
-            기능 열기
-          </button>
-        )}
-        {selected && (
-          <button type="button" onClick={() => handleRemove(selected.card_id)}>
-            카드 제거 (보드에서만)
-          </button>
+          </div>
         )}
       </div>
-      <div style={{ flex: 1, minHeight: 400, display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <ReactFlow
-            nodes={nodesWithLabels}
-            edges={[]}
-            onNodesChange={handleNodesChange}
-            defaultViewport={{ x: 20, y: 20, zoom: 1 }}
-          >
-            <Background />
-            <Controls showInteractive={false} />
-          </ReactFlow>
-        </div>
-        <MemoPanel status={status} access={access} />
+      <div className="canvas">
+        <ReactFlow
+          nodes={display}
+          edges={edges}
+          onNodesChange={handleChanges}
+          nodesConnectable={false}
+          deleteKeyCode={null}
+          defaultViewport={{ x: 18, y: 28, zoom: 0.95 }}
+          onNodeClick={(_, n) => {
+            if (resolved(n)) onOpen(n.data.kind, n.data.targetId)
+          }}
+        >
+          <Background variant={BackgroundVariant.Lines} gap={22} size={1} color="#e3e8ee" />
+          <Controls position="bottom-right" showInteractive={false} />
+        </ReactFlow>
+        {nodes.length === 0 && (
+          <div className="canvas-empty">
+            <span>
+              <Workflow />
+            </span>
+            <h2>보드에 첫 카드를 놓아보세요</h2>
+            <p>팀이 작업 중인 기능과 코드 자료를 한곳에서 연결해 보세요.</p>
+            <button onClick={() => (targets.length ? setAdding(true) : onExplore())}>
+              {targets.length ? '카드 선택' : '새 기능 만들기'}
+            </button>
+          </div>
+        )}
+        {selected && (
+          <div className="selection-tools">
+            {resolved(selected) && (
+              <button onClick={() => onOpen(selected.data.kind, selected.data.targetId)}>상세 열기</button>
+            )}
+            <button
+              title="보드에서 카드 제거"
+              aria-label="보드에서 카드 제거"
+              onClick={() => removeCard(selected.id)}
+            >
+              <Trash2 />
+            </button>
+          </div>
+        )}
+      </div>
+      <MemoPanel status={status} access={access} />
+      <div className={'sync-line ' + sync.tone} data-testid="sync-status">
+        <i />
+        {sync.text}
       </div>
     </section>
   )

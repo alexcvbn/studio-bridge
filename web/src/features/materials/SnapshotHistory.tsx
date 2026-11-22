@@ -44,9 +44,7 @@ export function SnapshotHistory({ materialId, viewingId, onView }: SnapshotHisto
 
   return (
     <div style={{ margin: '8px 0' }}>
-      <h4 style={{ margin: '8px 0 4px' }}>
-        수집본 기록{state === 'ready' ? ` (${records.length}개)` : ''}
-      </h4>
+      <h4 style={{ margin: '8px 0 4px' }}>수집본 기록{state === 'ready' ? ` (${records.length}개)` : ''}</h4>
       {state === 'loading' && <p>수집본 기록을 불러오는 중…</p>}
       {state === 'error' && (
         <p role="alert" style={{ color: '#b91c1c' }}>
@@ -69,18 +67,15 @@ export function SnapshotHistory({ materialId, viewingId, onView }: SnapshotHisto
                 type="button"
                 onClick={() => onView(r)}
                 aria-pressed={r.snapshot_id === viewingId}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  marginBottom: 4,
-                  fontWeight: r.snapshot_id === viewingId ? 700 : 400,
-                }}
+                className="snapshot-row"
+                title={`request_id ${r.request_id}`}
               >
-                {r.is_current ? '현재' : `이전 ${records.length - i}번째`} ·{' '}
-                {new Date(r.received_at).toLocaleString()} · {r.name} ·{' '}
-                {r.raw_code.split('\n').length}줄 ·{' '}
-                {/* 수집본마다 요청 ID가 다르다: 같은 요청의 재시도는 새 줄을 만들지 않는다 (07회차 #28) */}
-                <span title={`request_id ${r.request_id}`}>요청 {r.request_id.slice(0, 8)}</span>
+                <span className="revision">R{records.length - i}</span>
+                <span className="snapshot-date">
+                  <strong>{r.is_current ? '현재 수집본' : `이전 ${records.length - i}번째 수집본`}</strong>
+                  <time dateTime={r.received_at}>{new Date(r.received_at).toLocaleString('ko-KR')}</time>
+                </span>
+                <small>{r.raw_code.split('\n').length}줄</small>
               </button>
             </li>
           ))}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { getBoardSync, type SyncStatus } from '../features/board/boardSync'
-import { apiFetch, getTeamKey, saveTeamKey, syncUrl } from './connection'
+import { apiFetch, getTeamKey, saveTeamKey } from './connection'
 
 /**
  * A 담당 (06회차 #21): 서버 연결 확인과 팀 키 입력.
@@ -22,7 +22,7 @@ const SYNC_TEXT: Record<SyncStatus, string> = {
 const SYNC_SLOW_MS = 5000
 const SYNC_SLOW_TEXT = '연결되지 않음 (동기화 서버가 꺼졌거나 팀 키가 맞지 않음, 계속 다시 시도 중)'
 
-const DOWN = '서버에 연결할 수 없습니다. 서버 PC에서 서버가 켜져 있는지, 웹 주소가 서버 PC 주소인지 확인하세요.'
+const DOWN = '서버에 연결할 수 없습니다. 서버 실행 상태를 확인하세요.'
 
 async function checkServer(): Promise<Check> {
   try {
@@ -123,39 +123,28 @@ export function ConnectionPanel() {
         : check.phase === 'key'
           ? '팀 키 필요'
           : '서버 연결 실패'
-  const color =
-    check.phase === 'ok' ? '#1a7f37' : check.phase === 'checking' ? '#9a6700' : '#cf222e'
+  const color = check.phase === 'ok' ? '#1a7f37' : check.phase === 'checking' ? '#9a6700' : '#cf222e'
 
   return (
-    <section style={{ padding: '0 16px', fontSize: 14 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <strong style={{ color }}>{summary}</strong>
-        <span>보드 동기화: {syncSlow ? SYNC_SLOW_TEXT : SYNC_TEXT[sync]}</span>
-        <button type="button" onClick={() => void runCheck()} disabled={check.phase === 'checking'}>
-          {check.phase === 'checking' ? '확인 중…' : '다시 확인'}
-        </button>
-        <button type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? '연결 설정 닫기' : '연결 설정'}
-        </button>
-      </div>
-
-      {check.phase !== 'ok' && check.phase !== 'checking' && (
-        <p role="alert" style={{ color: '#cf222e', margin: '6px 0' }}>
-          {check.message}
-        </p>
-      )}
-
+    <section className="connection">
+      <button
+        className="connection-toggle"
+        aria-label={summary + ' · 연결 설정'}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <i style={{ background: color }} />
+        {summary} <span>⌄</span>
+      </button>
       {open && (
-        <div style={{ marginTop: 8, padding: 12, border: '1px solid #d0d7de', borderRadius: 6 }}>
-          <p style={{ margin: '0 0 6px' }}>
-            서버 주소: <code>{location.origin}</code> (API는 이 주소의 <code>/api</code>)
-            <br />
-            보드 동기화 주소: <code>{syncUrl()}</code>
-          </p>
-          <p style={{ margin: '0 0 8px', color: '#57606a' }}>
-            다른 PC에서는 <code>localhost</code>가 아니라 서버 PC의 주소로 이 화면을 엽니다. 팀 키는 서버를 띄운
-            팀원에게 받습니다. 키는 이 브라우저에만 저장되며 팀 접근 제한일 뿐 개인 신원 확인이 아닙니다.
-          </p>
+        <div className="connection-popup">
+          <h3>연결 설정</h3>
+          {check.phase !== 'ok' && check.phase !== 'checking' && <p role="alert">{check.message}</p>}
+          <p>보드 동기화 · {syncSlow ? SYNC_SLOW_TEXT : SYNC_TEXT[sync]}</p>
+          <button type="button" onClick={() => void runCheck()} disabled={check.phase === 'checking'}>
+            다시 확인
+          </button>
+          <p>공유 모드의 팀 키는 이 브라우저에 저장됩니다.</p>
           <form onSubmit={save} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <label>
               팀 키{' '}
