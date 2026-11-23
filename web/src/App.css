@@ -1075,3 +1075,398 @@
     font-size: 20px;
   }
 }
+
+/* 카드 관계선 (DB 테이블 관계처럼) */
+.canvas .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  transition: scale 0.12s;
+}
+.canvas .canvas-card:hover .react-flow__handle,
+.canvas .react-flow__handle.connectingfrom,
+.canvas .react-flow__handle.valid {
+  scale: 1.35;
+  background: var(--card-band);
+}
+.canvas[data-tool='hand'] .react-flow__handle {
+  visibility: hidden;
+}
+.canvas .react-flow__edge.auto-link .react-flow__edge-path {
+  stroke: #b3abc8;
+  stroke-dasharray: 5 4;
+}
+.canvas .react-flow__edge-path.relation-path {
+  stroke: #65458b;
+  stroke-width: 2;
+}
+.canvas .react-flow__edge-path.relation-path.selected {
+  stroke: #8960d2;
+  stroke-width: 3;
+}
+.canvas .react-flow__connection-path {
+  stroke: #8960d2;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+.relation-chip,
+.relation-end {
+  position: absolute;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.relation-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  background: #fff;
+  border: 1px solid #cdbfe0;
+  border-radius: 999px;
+  color: #47335d;
+  box-shadow: 0 1px 3px #38274714;
+}
+.relation-chip b {
+  font-weight: 700;
+  color: #65458b;
+}
+.relation-chip span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.relation-chip.selected {
+  border-color: #8960d2;
+  outline: 2px solid #e4d8f7;
+}
+.relation-end {
+  font-weight: 700;
+  color: #65458b;
+  background: #fffffff0;
+  border-radius: 4px;
+  padding: 1px 3px;
+}
+.connection-tools {
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: min(520px, calc(100% - 40px));
+  padding: 4px 6px;
+}
+.connection-ends {
+  font-size: 11px;
+  color: var(--quiet);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.relation-picker {
+  display: inline-flex;
+  border: 1px solid #d9d4df;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.connection-tools .relation-picker button {
+  border-radius: 0;
+  padding: 3px 8px;
+  font-weight: 650;
+}
+.connection-tools .relation-picker button[aria-checked='true'] {
+  background: var(--soft);
+  color: var(--blue);
+}
+.connection-tools input {
+  width: 140px;
+  font-size: 12px;
+  padding: 3px 7px;
+}
+.connect-hint {
+  position: absolute;
+  bottom: 86px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  font-size: 12px;
+  color: var(--quiet);
+  background: #ffffffe8;
+  border: 1px solid #e3dfe8;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 4;
+  white-space: nowrap;
+}
+.connect-hint svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 900px) {
+  .connect-hint {
+    display: none;
+  }
+}
+
+/* 카드 색 (선택한 카드의 색 고르기) */
+.canvas .canvas-card.color-purple,
+.swatch.color-purple {
+  --card-bg: #efe5fc;
+  --card-band: #614280;
+  --card-line: #bea7d0;
+  --card-ink: #47335d;
+}
+.canvas .canvas-card.color-green,
+.swatch.color-green {
+  --card-bg: #e2f4ec;
+  --card-band: #33766a;
+  --card-line: #9dcab9;
+  --card-ink: #244e46;
+}
+.canvas .canvas-card.color-blue,
+.swatch.color-blue {
+  --card-bg: #e3eefc;
+  --card-band: #2f5f9e;
+  --card-line: #a8c3e6;
+  --card-ink: #22406a;
+}
+.canvas .canvas-card.color-yellow,
+.swatch.color-yellow {
+  --card-bg: #fff4cc;
+  --card-band: #8a6a12;
+  --card-line: #e3cf86;
+  --card-ink: #5a4510;
+}
+.canvas .canvas-card.color-orange,
+.swatch.color-orange {
+  --card-bg: #ffe9dc;
+  --card-band: #b0562a;
+  --card-line: #efbb9c;
+  --card-ink: #6b3418;
+}
+.canvas .canvas-card.color-pink,
+.swatch.color-pink {
+  --card-bg: #fde6f0;
+  --card-band: #a83c6e;
+  --card-line: #e9a9c6;
+  --card-ink: #6a2246;
+}
+.canvas .canvas-card.color-gray,
+.swatch.color-gray {
+  --card-bg: #eef0f3;
+  --card-band: #56606e;
+  --card-line: #c5cbd3;
+  --card-ink: #313844;
+}
+.canvas .canvas-card[class*='color-'] .type-icon {
+  background: var(--card-line);
+  color: var(--card-band);
+}
+.canvas .canvas-card .decision-preview {
+  border-top-color: var(--card-line);
+}
+.color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-left: 1px solid #e3dfe8;
+  border-right: 1px solid #e3dfe8;
+  margin: 0 2px;
+}
+.selection-tools .swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--card-band);
+  background: var(--card-bg);
+  cursor: pointer;
+}
+.selection-tools .swatch-default {
+  background: linear-gradient(135deg, #efe5fc 50%, #e2f4ec 50%);
+  border-color: #9a90ad;
+}
+.selection-tools .swatch[aria-checked='true'] {
+  outline: 2px solid #8960d2;
+  outline-offset: 2px;
+}
+
+/* 연결점을 크고 잘 보이게, 누르기 쉽게 (클릭 연결·끌어 잇기) */
+.canvas .react-flow__node.canvas-card .react-flow__handle {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--card-band);
+  background: #fff;
+  cursor: crosshair;
+}
+.canvas .react-flow__node.canvas-card .react-flow__handle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+.canvas .react-flow__node.canvas-card .react-flow__handle.connectionindicator:hover,
+.canvas .react-flow__handle.clickconnecting,
+.canvas .react-flow__handle.connectingfrom {
+  background: var(--card-band);
+  box-shadow: 0 0 0 4px #8960d233;
+}
+.canvas[data-linking] .react-flow__node {
+  cursor: crosshair;
+}
+.canvas[data-linking] .react-flow__node:hover {
+  outline: 2px dashed #8960d2;
+  outline-offset: 3px;
+}
+.connect-hint.active {
+  color: #4b2f73;
+  background: #f0eafa;
+  border-color: #c9b5ea;
+  font-weight: 600;
+}
+.selection-tools .link-start {
+  gap: 4px;
+  font-weight: 600;
+  color: #543377;
+}
+.selection-tools .link-start[aria-pressed='true'] {
+  background: var(--soft);
+  border-radius: 8px;
+}
+
+/* 카드 크기 조절 */
+.canvas .react-flow__node.canvas-card.sized {
+  display: flex;
+}
+.canvas .canvas-card .card-body {
+  width: 100%;
+  min-width: 0;
+}
+.canvas .canvas-card.sized .card-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.canvas .canvas-card.sized .decision-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.canvas .canvas-card.sized .card-foot {
+  margin-top: auto;
+}
+.canvas .react-flow__resize-control.card-resize-handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #fff;
+  border: 2px solid #8960d2;
+}
+.canvas .react-flow__resize-control.card-resize-line {
+  border-color: #8960d2;
+}
+
+/* 설정(톱니바퀴): 연결 상태·팀 키를 한곳에 */
+.settings-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 41px;
+  height: 41px;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #d9d4df;
+  border-radius: 13px;
+  box-shadow: var(--chrome-shadow);
+  color: #48366c;
+  cursor: pointer;
+}
+.settings-toggle svg {
+  width: 19px;
+  height: 19px;
+}
+.settings-toggle[aria-expanded='true'] {
+  background: var(--soft);
+}
+.settings-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+}
+.settings-popup {
+  width: min(340px, 92vw);
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.settings-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.settings-popup h4 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--quiet);
+}
+.status-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.status-list li {
+  display: grid;
+  grid-template-columns: 8px 72px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.status-list i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-list span {
+  color: var(--quiet);
+}
+.status-list strong {
+  font-weight: 600;
+}
+.settings-note {
+  font-size: 12px;
+  color: #6a4b12;
+  background: #fff6dd;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.settings-recheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+}
+.settings-recheck svg {
+  width: 13px;
+  height: 13px;
+}
+@media (max-width: 900px) {
+  .settings-toggle {
+    width: 36px;
+    height: 36px;
+  }
+}

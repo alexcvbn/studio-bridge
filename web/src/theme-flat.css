@@ -1,0 +1,259 @@
+/*
+ * 각진 화면 테마 (애플 홈페이지 느낌)
+ * - 보드 카드만 둥글게 두고, 패널·도구막대·버튼·입력칸·팝오버·배지는 모두 각진 모서리.
+ * - 원래 원형인 표시(연결 동그라미, 색 동그라미, 상태 점)는 원형 유지.
+ * - 그림자·진한 색 상자 대신 얇은 구분선(#d2d2d7)과 면 색(흰색 / #f5f5f7)으로 나눈다.
+ * App.css 다음에 불러와 덮어쓴다.
+ */
+:root {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'SF Pro Display',
+    'Apple SD Gothic Neo',
+    'Helvetica Neue',
+    'Malgun Gothic',
+    sans-serif;
+  color: #1d1d1f;
+  --line: #d2d2d7;
+  --quiet: #6e6e73;
+  --blue: #0066cc;
+  --soft: #e8f0fb;
+}
+body {
+  background: #f5f5f7;
+}
+
+/* 1. 모서리: 보드 카드 안쪽과 원형 표시를 뺀 모든 것을 각지게 */
+.shell
+  *:not(
+    .canvas-card,
+    .canvas-card *,
+    .react-flow__handle,
+    .swatch,
+    .settings-dot,
+    .status-list i,
+    .sync-line i,
+    .relation-end
+  ) {
+  border-radius: 0 !important;
+}
+
+/* 2. 면과 선 */
+.shell {
+  --sheet: #f5f5f7;
+  --ink: #1d1d1f;
+  --chrome-shadow: none;
+  background-color: #f5f5f7;
+  background-image: none;
+  color: #1d1d1f;
+}
+.canvas {
+  background: #f5f5f7;
+}
+.panel,
+.dock,
+.zoom-tools,
+.add-pop,
+.selection-tools,
+.connection-popup,
+.board-status,
+.connect-hint,
+.memo-note {
+  box-shadow: none !important;
+  border: 1px solid var(--line) !important;
+}
+.panel,
+.dock,
+.zoom-tools,
+.add-pop,
+.selection-tools,
+.connection-popup {
+  background: #fff;
+}
+
+/* 3. 위쪽 얇은 반투명 네비게이션 바 */
+.topbar {
+  inset: 0 0 auto;
+  height: 48px;
+  padding: 0 16px;
+  align-items: center;
+  background: rgba(251, 251, 253, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--line);
+}
+.board-bar {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  height: 48px;
+  padding: 0;
+}
+.brand {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+}
+.brand-mark {
+  transform: none;
+  background: #1d1d1f;
+  color: #fff;
+  width: 26px;
+  height: 26px;
+}
+.brand-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.board-bar h1 {
+  font-weight: 400;
+  color: var(--quiet);
+}
+.settings-toggle {
+  width: 34px;
+  height: 34px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #1d1d1f;
+}
+.settings-toggle:hover,
+.settings-toggle[aria-expanded='true'] {
+  background: #e8e8ed;
+}
+.settings-dot {
+  top: 5px;
+  right: 5px;
+}
+.connection-popup {
+  top: 42px;
+}
+
+/* 패널·상태 표시를 네비게이션 바 아래로 */
+.explorer,
+.inspector {
+  margin-top: 64px;
+}
+.board-status {
+  top: 60px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--quiet);
+}
+.selection-tools {
+  top: 92px;
+}
+
+/* 4. 글자: 큰 제목, 작은 회색 보조글 */
+.pane-title {
+  background: #fff;
+  border-color: var(--line);
+}
+.pane-title h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.group-heading,
+.settings-popup h4 {
+  color: var(--quiet);
+}
+.group-heading > span,
+.count {
+  background: #f5f5f7;
+  color: var(--quiet);
+}
+.settings-head h3 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+/* 5. 목록·선택 상태: 진한 색 상자 대신 옅은 회색 면과 파란 글자 */
+.shell .item-row {
+  border-color: transparent;
+}
+.item-row:hover {
+  background: #f5f5f7;
+}
+.item-row[aria-pressed='true'] {
+  background: #f5f5f7;
+  border-color: transparent;
+  color: var(--blue);
+}
+.explorer .group-heading > svg,
+.item-row > .blue,
+.explorer-group:nth-last-child(1) .group-heading > svg,
+.item-row > .violet {
+  color: var(--quiet);
+}
+
+/* 6. 버튼·입력칸 */
+.shell :is(button, input, select, textarea) {
+  border-color: var(--line);
+}
+.shell :is(input, select, textarea):focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: -1px;
+}
+.dock button,
+.zoom-tools button {
+  color: #1d1d1f;
+}
+.dock button[aria-pressed='true'] {
+  background: #f5f5f7;
+  color: var(--blue);
+}
+.dock button.add-trigger,
+.canvas-empty button,
+button.primary {
+  background: #0071e3;
+  color: #fff;
+  border-color: #0071e3;
+}
+.dock button.add-trigger:hover,
+button.primary:hover {
+  background: #0077ed;
+}
+
+/* 파란 텍스트 링크처럼 보이는 보조 버튼 */
+.selection-tools button,
+.settings-recheck,
+.connection-tools button,
+.link-start {
+  color: var(--blue) !important;
+  background: transparent;
+}
+.selection-tools button:hover,
+.settings-recheck:hover {
+  text-decoration: underline;
+}
+.selection-tools .link-start[aria-pressed='true'],
+.connection-tools .relation-picker button[aria-checked='true'] {
+  background: #f5f5f7;
+  text-decoration: underline;
+}
+
+/* 7. 캔버스 위 작은 표시들 */
+.connect-hint {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--quiet);
+}
+.connect-hint.active {
+  background: #fff;
+  color: var(--blue);
+  border-color: #0071e3 !important;
+}
+.relation-chip {
+  border-color: var(--line);
+  box-shadow: none;
+}
+.memo-note {
+  background: #fff;
+  color: #1d1d1f;
+}
+.settings-note {
+  background: #f5f5f7;
+  color: #1d1d1f;
+}

@@ -21,6 +21,7 @@ import { MaterialLibrary } from './features/materials/MaterialLibrary'
 import { SourceUidSearch } from './features/materials/SourceUidSearch'
 import { ConnectionPanel } from './shared/ConnectionPanel'
 import './App.css'
+import './theme-flat.css'
 
 type Selection = { kind: CardKind; id: string }
 type Pane = 'explorer' | 'board' | 'inspector'
