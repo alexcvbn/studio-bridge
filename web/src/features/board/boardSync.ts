@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { syncParams, syncUrl } from '../../shared/connection'
 import { probeAccess, type AccessState } from './syncAccess'
-import type { BoardCard, CardKind } from './types'
+import type { BoardCard, BoardConnection, CardColor, CardKind, Relation } from './types'
 
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -12,8 +12,8 @@ const ROOM = 'studio-bridge/main'
 const PROBE_DELAY_MS = 2000
 const PROBE_RETRY_MS = 5000
 
-// 새 카드는 카드 폭(200px)에 맞춘 격자에 놓아 서로 겹치지 않게 한다.
-const GRID = { cols: 4, w: 240, h: 110, x: 40, y: 40 }
+// 새 카드만 배치한다. 이전 보드에 저장된 위치는 그대로 사용한다.
+const GRID = { cols: 2, w: 274, h: 216, x: 36, y: 36 }
 
 export interface BoardSync {
   // card_id -> 카드. 이동은 해당 카드 항목만 덮어쓴다.
@@ -22,6 +22,10 @@ export interface BoardSync {
   removedCardIds: Y.Map<boolean>
   // 공동 메모. 카드와 같은 문서에 있어 같은 서버에 함께 저장된다.
   memo: Y.Text
+  // connection_id -> 카드 사이의 관계선. 카드와 같은 문서에 있어 함께 공유·저장된다.
+  connections: Y.Map<BoardConnection>
+  // 지운 connection_id. 지운 뒤 늦게 도착한 수정(관계·이름·방향)이 선을 되살리지 못하게 한다.
+  removedConnectionIds: Y.Map<boolean>
   subscribeStatus: (listener: (status: SyncStatus) => void) => () => void
   // 연결되지 않은 이유(접속 거절인지 서버에 닿지 않는지). 연결되면 ok.
   subscribeAccess: (listener: (access: AccessState) => void) => () => void
@@ -39,16 +43,33 @@ function connect(): Shared {
   const cards = doc.getMap<BoardCard>('cards')
   const removedCardIds = doc.getMap<boolean>('removedCardIds')
   const memo = doc.getText('memo')
+  const connections = doc.getMap<BoardConnection>('connections')
+  const removedConnectionIds = doc.getMap<boolean>('removedConnectionIds')
   const provider = new WebsocketProvider(syncUrl(), ROOM, doc, { params: syncParams() })
 
   // 제거된 카드에 늦게 도착한 이동이 문서에 카드를 다시 넣어도 바로 지운다.
   // 이미 지운 항목을 다시 지우는 것은 변화가 없어 다른 클라이언트와 무한히 주고받지 않는다.
+  // 제거된 카드에 늦게 붙은 관계선도 같이 지운다.
   const purgeRemoved = () => {
     const stale = [...cards.keys()].filter((id) => removedCardIds.has(id))
-    if (stale.length > 0) doc.transact(() => stale.forEach((id) => cards.delete(id)))
+    const staleLinks = [...connections.values()]
+      .filter(
+        (c) =>
+          removedConnectionIds.has(c.connection_id) ||
+          removedCardIds.has(c.source) ||
+          removedCardIds.has(c.target),
+      )
+      .map((c) => c.connection_id)
+    if (stale.length > 0 || staleLinks.length > 0)
+      doc.transact(() => {
+        stale.forEach((id) => cards.delete(id))
+        staleLinks.forEach((id) => connections.delete(id))
+      })
   }
   cards.observe(purgeRemoved)
   removedCardIds.observe(purgeRemoved)
+  connections.observe(purgeRemoved)
+  removedConnectionIds.observe(purgeRemoved)
 
   let status: SyncStatus = 'connecting'
   const listeners = new Set<(s: SyncStatus) => void>()
@@ -97,6 +118,8 @@ function connect(): Shared {
     cards,
     removedCardIds,
     memo,
+    connections,
+    removedConnectionIds,
     subscribeStatus: (listener) => {
       listeners.add(listener)
       listener(status)
@@ -132,12 +155,22 @@ if (import.meta.hot) {
   })
 }
 
+// 로컬·HTTPS와 공유 모드의 HTTP LAN 접속에서 모두 쓸 수 있는 카드 식별자.
+function newCardId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-')
+}
+
 // 항상 새 card_id를 만든다. 같은 자료를 다시 추가하면 같은 target_id의 새 카드가 생긴다.
 export function addCard(kind: CardKind, targetId: string): BoardCard {
   const { cards, removedCardIds } = getBoardSync()
   const n = cards.size
-  let cardId = crypto.randomUUID()
-  while (removedCardIds.has(cardId)) cardId = crypto.randomUUID()
+  let cardId = newCardId()
+  while (cards.has(cardId) || removedCardIds.has(cardId)) cardId = newCardId()
   const card: BoardCard = {
     card_id: cardId,
     kind,
@@ -159,6 +192,38 @@ export function moveCard(cardId: string, position: { x: number; y: number }): vo
   if (card.position.x === position.x && card.position.y === position.y) return
   cards.set(cardId, { ...card, position })
 }
+
+// 카드 크기를 바꾼다. 위치·색처럼 해당 카드 항목만 다시 쓴다. 크기가 그대로면 아무것도 쓰지 않는다.
+export function resizeCard(cardId: string, size: { width: number; height: number }): void {
+  const { cards, removedCardIds } = getBoardSync()
+  const card = cards.get(cardId)
+  if (!card || removedCardIds.has(cardId)) return
+  const next = { width: Math.round(size.width), height: Math.round(size.height) }
+  if (card.size && card.size.width === next.width && card.size.height === next.height) return
+  cards.set(cardId, { ...card, size: next })
+}
+
+// 카드 색을 바꾼다. null이면 종류별 기본색으로 되돌린다. 값이 그대로면 아무것도 쓰지 않는다.
+export function setCardColor(cardId: string, color: CardColor | null): void {
+  const { cards, removedCardIds } = getBoardSync()
+  const card = cards.get(cardId)
+  if (!card || removedCardIds.has(cardId)) return
+  if ((card.color ?? null) === color) return
+  const next: BoardCard = { ...card }
+  if (color) next.color = color
+  else delete next.color
+  cards.set(cardId, next)
+}
+
+export const CARD_COLORS: { id: CardColor; name: string }[] = [
+  { id: 'purple', name: '보라' },
+  { id: 'green', name: '초록' },
+  { id: 'blue', name: '파랑' },
+  { id: 'yellow', name: '노랑' },
+  { id: 'orange', name: '주황' },
+  { id: 'pink', name: '분홍' },
+  { id: 'gray', name: '회색' },
+]
 
 // 이 브라우저에서 직접 입력한 변경의 출처 표시. 메모 화면이 내 입력과 남의 입력을 구분한다.
 export const LOCAL_MEMO_ORIGIN = 'local-memo-edit'
@@ -186,11 +251,17 @@ export function applyMemoEdit(next: string): void {
 }
 
 // 보드 상태에서만 제거한다. 자료·기능·결정 등 서버 데이터는 건드리지 않는다.
+// 이 카드에 붙은 관계선도 함께 지운다.
 export function removeCard(cardId: string): void {
-  const { cards, removedCardIds } = getBoardSync()
+  const { cards, removedCardIds, connections, removedConnectionIds } = getBoardSync()
   const remove = () => {
     cards.delete(cardId)
     removedCardIds.set(cardId, true)
+    for (const c of [...connections.values()])
+      if (c.source === cardId || c.target === cardId) {
+        connections.delete(c.connection_id)
+        removedConnectionIds.set(c.connection_id, true)
+      }
   }
   if (cards.doc) cards.doc.transact(remove)
   else remove()
@@ -200,3 +271,61 @@ export function removeCard(cardId: string): void {
 export function addMaterialCard(materialId: string): BoardCard {
   return addCard('material', materialId)
 }
+
+// 두 카드를 잇는다. 자기 자신이나 없는·제거된 카드는 잇지 않는다.
+// 이미 이어진 두 카드(방향과 상관없이)를 다시 이으면 새로 만들지 않고 기존 연결을 돌려준다.
+export function addConnection(source: string, target: string): BoardConnection | null {
+  const { cards, removedCardIds, connections, removedConnectionIds } = getBoardSync()
+  if (source === target) return null
+  if (!cards.has(source) || !cards.has(target)) return null
+  if (removedCardIds.has(source) || removedCardIds.has(target)) return null
+  const existing = [...connections.values()].find(
+    (c) => (c.source === source && c.target === target) || (c.source === target && c.target === source),
+  )
+  if (existing) return existing
+  let connectionId = newCardId()
+  while (connections.has(connectionId) || removedConnectionIds.has(connectionId)) connectionId = newCardId()
+  const connection: BoardConnection = {
+    connection_id: connectionId,
+    source,
+    target,
+    relation: '1:N',
+    label: '',
+  }
+  connections.set(connectionId, connection)
+  return connection
+}
+
+// 관계 종류·이름을 바꾼다. 값이 그대로면 아무것도 쓰지 않는다.
+export function updateConnection(
+  connectionId: string,
+  patch: Partial<Pick<BoardConnection, 'relation' | 'label'>>,
+): void {
+  const { connections, removedConnectionIds } = getBoardSync()
+  const c = connections.get(connectionId)
+  if (!c || removedConnectionIds.has(connectionId)) return
+  const next = { ...c, ...patch }
+  if (next.relation === c.relation && next.label === c.label) return
+  connections.set(connectionId, next)
+}
+
+// 방향을 뒤집는다(1:N이면 N 쪽과 1 쪽이 바뀐다).
+export function reverseConnection(connectionId: string): void {
+  const { connections, removedConnectionIds } = getBoardSync()
+  const c = connections.get(connectionId)
+  if (!c || removedConnectionIds.has(connectionId)) return
+  connections.set(connectionId, { ...c, source: c.target, target: c.source })
+}
+
+// 보드에서만 지운다. 지운 ID를 남겨 늦게 도착한 수정이 선을 되살리지 못하게 한다.
+export function removeConnection(connectionId: string): void {
+  const { connections, removedConnectionIds } = getBoardSync()
+  const remove = () => {
+    connections.delete(connectionId)
+    removedConnectionIds.set(connectionId, true)
+  }
+  if (connections.doc) connections.doc.transact(remove)
+  else remove()
+}
+
+export const RELATIONS: Relation[] = ['1:1', '1:N', 'N:M']

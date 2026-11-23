@@ -11,6 +11,7 @@ type LinkState =
 interface MaterialActionsProps {
   /** 지금 자료함에서 고른 자료 */
   materialId: string
+  onLinked: () => void
   materialName: string
   /** 보드에 자료 카드를 추가한다 (B의 addMaterialCard) */
   onAddMaterial: (materialId: string) => void
@@ -20,7 +21,7 @@ interface MaterialActionsProps {
  * D 담당 (04회차 #16): 고른 자료를 기능에 연결하거나 보드에 올리는 버튼 모음.
  * 자료가 바뀌면 MaterialLibrary가 key로 이 컴포넌트를 새로 만들어 상태가 초기화된다.
  */
-export function MaterialActions({ materialId, materialName, onAddMaterial }: MaterialActionsProps) {
+export function MaterialActions({ materialId, materialName, onAddMaterial, onLinked }: MaterialActionsProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [link, setLink] = useState<LinkState>({ kind: 'idle' })
   const [addedCount, setAddedCount] = useState(0)
@@ -32,6 +33,7 @@ export function MaterialActions({ materialId, materialName, onAddMaterial }: Mat
       const res = await linkMaterial(featureId, materialId)
       setLink({ kind: 'done', featureTitle, already: res.already_linked })
       setShowPicker(false)
+      onLinked()
     } catch (e) {
       setLink({ kind: 'error', featureId, featureTitle, message: (e as Error).message })
     }
@@ -79,7 +81,7 @@ export function MaterialActions({ materialId, materialName, onAddMaterial }: Mat
       )}
       {addedCount > 0 && (
         <p style={{ color: '#15803d' }}>
-          보드에 자료 카드를 추가했습니다{addedCount > 1 ? ` (${addedCount}장)` : ''}. 보드 메뉴에서 확인하세요.
+          보드에 자료 카드를 추가했습니다{addedCount > 1 ? ` (${addedCount}장)` : ''}.
         </p>
       )}
     </div>

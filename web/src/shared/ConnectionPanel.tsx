@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { RefreshCw, Settings, X } from 'lucide-react'
 import { getBoardSync, type SyncStatus } from '../features/board/boardSync'
-import { apiFetch, getTeamKey, saveTeamKey, syncUrl } from './connection'
+import { describeSync, type AccessState } from '../features/board/syncAccess'
+import { apiFetch, getTeamKey, saveTeamKey } from './connection'
 
 /**
  * A 담당 (06회차 #21): 서버 연결 확인과 팀 키 입력.
  * 서버 꺼짐 / 키 필요 / 키 틀림 / 허용 안 됨 / 연결됨을 구분해 보여준다.
  * 키 값은 화면에 다시 보여주지 않는다.
+ *
+ * 화면에는 톱니바퀴(설정) 버튼과 상태 점만 두고, 서버·보드 동기화 상태와 팀 키는 설정 창 안에서 본다.
+ * 점 색: 초록 = 서버·동기화 모두 연결, 노랑 = 확인·연결 중, 빨강 = 하나라도 실패.
  */
 
 type Check =
@@ -14,15 +19,10 @@ type Check =
   | { phase: 'key'; message: string } // 401: 키 필요·틀림
   | { phase: 'fail'; message: string } // 서버 꺼짐·403·그 밖의 오류
 
-const SYNC_TEXT: Record<SyncStatus, string> = {
-  connecting: '연결 중',
-  connected: '연결됨',
-  disconnected: '끊김 (동기화 서버가 꺼졌거나 팀 키가 맞지 않음)',
-}
-const SYNC_SLOW_MS = 5000
-const SYNC_SLOW_TEXT = '연결되지 않음 (동기화 서버가 꺼졌거나 팀 키가 맞지 않음, 계속 다시 시도 중)'
+const TONE_COLOR = { ok: '#1a7f37', wait: '#9a6700', fail: '#cf222e' } as const
+type Tone = keyof typeof TONE_COLOR
 
-const DOWN = '서버에 연결할 수 없습니다. 서버 PC에서 서버가 켜져 있는지, 웹 주소가 서버 PC 주소인지 확인하세요.'
+const DOWN = '서버에 연결할 수 없습니다. 서버 실행 상태를 확인하세요.'
 
 async function checkServer(): Promise<Check> {
   try {
@@ -50,8 +50,9 @@ async function checkServer(): Promise<Check> {
 export function ConnectionPanel() {
   const [check, setCheck] = useState<Check>({ phase: 'checking' })
   const [sync, setSync] = useState<SyncStatus>('connecting')
-  const [syncSlow, setSyncSlow] = useState(false)
+  const [access, setAccess] = useState<AccessState>({ phase: 'unknown' })
   const [open, setOpen] = useState(false)
+  const root = useRef<HTMLElement>(null)
   const [keyInput, setKeyInput] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const hasKey = getTeamKey() !== ''
@@ -77,24 +78,33 @@ export function ConnectionPanel() {
     }
   }, [applyResult])
 
-  // y-websocket은 한 번도 연결되지 않은 채 거절되면 '끊김' 없이 계속 '연결 중'이다.
-  // 그래서 몇 초 넘게 연결 중이면 원인을 안내한다. 재시도마다 '연결 중'이 다시 오므로 바뀔 때만 시간을 잰다.
+  // 보드 동기화 상태. y-websocket은 거절돼도 '연결 중'에 머물러서, 접속 거절·서버 꺼짐은 /access 확인 결과로 구분한다.
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let last: SyncStatus | null = null
-    const unsubscribe = getBoardSync().subscribeStatus((next) => {
-      if (next === last) return
-      last = next
-      setSync(next)
-      setSyncSlow(false)
-      clearTimeout(timer)
-      if (next === 'connecting') timer = setTimeout(() => setSyncSlow(true), SYNC_SLOW_MS)
-    })
+    const sync = getBoardSync()
+    const statusOff = sync.subscribeStatus(setSync)
+    const accessOff = sync.subscribeAccess(setAccess)
     return () => {
-      clearTimeout(timer)
-      unsubscribe()
+      statusOff()
+      accessOff()
     }
   }, [])
+
+  // 설정 창 밖을 누르거나 Esc를 누르면 닫는다.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
 
   const save = (event: FormEvent) => {
     event.preventDefault()
@@ -123,39 +133,58 @@ export function ConnectionPanel() {
         : check.phase === 'key'
           ? '팀 키 필요'
           : '서버 연결 실패'
-  const color =
-    check.phase === 'ok' ? '#1a7f37' : check.phase === 'checking' ? '#9a6700' : '#cf222e'
+  const serverTone: Tone = check.phase === 'ok' ? 'ok' : check.phase === 'checking' ? 'wait' : 'fail'
+  const syncInfo = describeSync(sync, access)
+  const syncTone: Tone = syncInfo.tone === 'ok' ? 'ok' : syncInfo.tone === 'fail' ? 'fail' : 'wait'
+  const overall: Tone =
+    serverTone === 'fail' || syncTone === 'fail' ? 'fail' : serverTone === 'ok' && syncTone === 'ok' ? 'ok' : 'wait'
+  const overallText = overall === 'ok' ? '모두 연결됨' : overall === 'wait' ? '연결 확인 중' : '연결 문제 있음'
 
   return (
-    <section style={{ padding: '0 16px', fontSize: 14 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <strong style={{ color }}>{summary}</strong>
-        <span>보드 동기화: {syncSlow ? SYNC_SLOW_TEXT : SYNC_TEXT[sync]}</span>
-        <button type="button" onClick={() => void runCheck()} disabled={check.phase === 'checking'}>
-          {check.phase === 'checking' ? '확인 중…' : '다시 확인'}
-        </button>
-        <button type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? '연결 설정 닫기' : '연결 설정'}
-        </button>
-      </div>
-
-      {check.phase !== 'ok' && check.phase !== 'checking' && (
-        <p role="alert" style={{ color: '#cf222e', margin: '6px 0' }}>
-          {check.message}
-        </p>
-      )}
-
+    <section className="connection settings" ref={root}>
+      <button
+        className="settings-toggle"
+        title={'설정 · ' + overallText}
+        aria-label={'설정 · ' + overallText}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Settings />
+        <i className="settings-dot" style={{ background: TONE_COLOR[overall] }} />
+      </button>
       {open && (
-        <div style={{ marginTop: 8, padding: 12, border: '1px solid #d0d7de', borderRadius: 6 }}>
-          <p style={{ margin: '0 0 6px' }}>
-            서버 주소: <code>{location.origin}</code> (API는 이 주소의 <code>/api</code>)
-            <br />
-            보드 동기화 주소: <code>{syncUrl()}</code>
-          </p>
-          <p style={{ margin: '0 0 8px', color: '#57606a' }}>
-            다른 PC에서는 <code>localhost</code>가 아니라 서버 PC의 주소로 이 화면을 엽니다. 팀 키는 서버를 띄운
-            팀원에게 받습니다. 키는 이 브라우저에만 저장되며 팀 접근 제한일 뿐 개인 신원 확인이 아닙니다.
-          </p>
+        <div className="connection-popup settings-popup" role="dialog" aria-label="설정">
+          <div className="settings-head">
+            <h3>설정</h3>
+            <button type="button" className="icon-btn" aria-label="설정 닫기" onClick={() => setOpen(false)}>
+              <X />
+            </button>
+          </div>
+          <h4>연결 상태</h4>
+          <ul className="status-list">
+            <li>
+              <i style={{ background: TONE_COLOR[serverTone] }} />
+              <span>서버</span>
+              <strong>{summary}</strong>
+            </li>
+            <li>
+              <i style={{ background: TONE_COLOR[syncTone] }} />
+              <span>보드 동기화</span>
+              <strong data-testid="sync-status">{syncInfo.text}</strong>
+            </li>
+          </ul>
+          {check.phase !== 'ok' && check.phase !== 'checking' && <p role="alert">{check.message}</p>}
+          {syncInfo.note && syncTone !== 'ok' && <p className="settings-note">{syncInfo.note}</p>}
+          <button
+            type="button"
+            className="settings-recheck"
+            onClick={() => void runCheck()}
+            disabled={check.phase === 'checking'}
+          >
+            <RefreshCw /> 다시 확인
+          </button>
+          <h4>팀 키</h4>
+          <p>공유 모드의 팀 키는 이 브라우저에 저장됩니다.</p>
           <form onSubmit={save} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <label>
               팀 키{' '}
