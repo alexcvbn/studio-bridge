@@ -1184,7 +1184,7 @@
 }
 .connect-hint {
   position: absolute;
-  top: 116px;
+  bottom: 86px;
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
@@ -1293,4 +1293,47 @@
 .selection-tools .swatch[aria-checked='true'] {
   outline: 2px solid #8960d2;
   outline-offset: 2px;
+}
+
+/* 연결점을 크고 잘 보이게, 누르기 쉽게 (클릭 연결·끌어 잇기) */
+.canvas .react-flow__node.canvas-card .react-flow__handle {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--card-band);
+  background: #fff;
+  cursor: crosshair;
+}
+.canvas .react-flow__node.canvas-card .react-flow__handle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+.canvas .react-flow__node.canvas-card .react-flow__handle.connectionindicator:hover,
+.canvas .react-flow__handle.clickconnecting,
+.canvas .react-flow__handle.connectingfrom {
+  background: var(--card-band);
+  box-shadow: 0 0 0 4px #8960d233;
+}
+.canvas[data-linking] .react-flow__node {
+  cursor: crosshair;
+}
+.canvas[data-linking] .react-flow__node:hover {
+  outline: 2px dashed #8960d2;
+  outline-offset: 3px;
+}
+.connect-hint.active {
+  color: #4b2f73;
+  background: #f0eafa;
+  border-color: #c9b5ea;
+  font-weight: 600;
+}
+.selection-tools .link-start {
+  gap: 4px;
+  font-weight: 600;
+  color: #543377;
+}
+.selection-tools .link-start[aria-pressed='true'] {
+  background: var(--soft);
+  border-radius: 8px;
 }

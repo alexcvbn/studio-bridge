@@ -64,7 +64,10 @@ type Context = { links?: string[]; decision?: string }
 const key = (kind: CardKind, id: string) => kind + ':' + id
 // 렌더마다 새로 만들면 React Flow가 경고하므로 밖에 둔다.
 const edgeTypes: EdgeTypes = { relation: RelationEdge }
-const readConnections = () => [...getBoardSync().connections.values()]
+const readConnections = () => {
+  const { connections, removedConnectionIds } = getBoardSync()
+  return [...connections.values()].filter((c) => !removedConnectionIds.has(c.connection_id))
+}
 
 function syncNodes(prev: CardNode[]): CardNode[] {
   const { cards, removedCardIds } = getBoardSync()
@@ -98,6 +101,16 @@ export function BoardView({
   const [contexts, setContexts] = useState<Record<string, Context>>({})
   const [connections, setConnections] = useState<BoardConnection[]>(readConnections)
   const [selectedConnection, setSelectedConnection] = useState<string | null>(null)
+  // '선 잇기'를 누른 카드. 이 상태에서 다른 카드를 누르면 두 카드를 잇는다.
+  const [linkFrom, setLinkFrom] = useState<string | null>(null)
+  useEffect(() => {
+    if (!linkFrom) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLinkFrom(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [linkFrom])
   useEffect(() => {
     const sync = getBoardSync()
     const apply = () => setNodes(syncNodes)
@@ -105,12 +118,14 @@ export function BoardView({
     sync.cards.observe(apply)
     sync.removedCardIds.observe(apply)
     sync.connections.observe(applyConnections)
+    sync.removedConnectionIds.observe(applyConnections)
     const statusOff = sync.subscribeStatus(setStatus)
     const accessOff = sync.subscribeAccess(setAccess)
     return () => {
       sync.cards.unobserve(apply)
       sync.removedCardIds.unobserve(apply)
       sync.connections.unobserve(applyConnections)
+      sync.removedConnectionIds.unobserve(applyConnections)
       statusOff()
       accessOff()
     }
@@ -228,10 +243,14 @@ export function BoardView({
     const n = nodes.find((node) => node.id === cardId)
     return (n && resolved(n)?.title) ?? '카드'
   }
+  // 이은 뒤에는 카드 선택을 풀고 새 선을 골라, 바로 관계 종류·이름을 고칠 수 있게 한다.
   function connect(source: string, target: string) {
     const made = addConnection(source, target)
-    if (made) setSelectedConnection(made.connection_id)
+    if (!made) return
+    setNodes((prev) => prev.map((n) => (n.selected ? { ...n, selected: false } : n)))
+    setSelectedConnection(made.connection_id)
   }
+  const linking = tool === 'select' && linkFrom !== null && nodes.some((n) => n.id === linkFrom)
   const selectedNodes = nodes.filter((n) => n.selected)
   const selected = selectedNodes.length === 1 ? selectedNodes[0] : undefined
   const sync = describeSync(status, access)
@@ -241,7 +260,7 @@ export function BoardView({
   }
   return (
     <section className="board-pane">
-      <div className="canvas" data-tool={tool}>
+      <div className="canvas" data-tool={tool} data-linking={linking || undefined}>
         <ReactFlow
           nodes={display}
           edges={edges}
@@ -249,6 +268,7 @@ export function BoardView({
           onEdgesChange={handleEdgeChanges}
           edgeTypes={edgeTypes}
           nodesConnectable={tool === 'select'}
+          connectOnClick
           connectionMode={ConnectionMode.Loose}
           connectionLineType={ConnectionLineType.SmoothStep}
           connectionRadius={36}
@@ -272,10 +292,19 @@ export function BoardView({
           onPaneClick={() => {
             setAdding(false)
             setSelectedConnection(null)
+            setLinkFrom(null)
           }}
           defaultViewport={{ x: 18, y: 28, zoom: 0.95 }}
-          onNodeClick={(_, n) => {
-            if (tool === 'select' && resolved(n)) onOpen(n.data.kind, n.data.targetId)
+          onNodeClick={(event, n) => {
+            if (tool !== 'select') return
+            // 연결점(동그라미)을 누른 것은 클릭 연결이므로 상세 보기를 열지 않는다.
+            if ((event.target as Element).closest('.react-flow__handle')) return
+            if (linking && linkFrom) {
+              if (n.id !== linkFrom) connect(linkFrom, n.id)
+              setLinkFrom(null)
+              return
+            }
+            if (resolved(n)) onOpen(n.data.kind, n.data.targetId)
           }}
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.25} color="#ccc7d4" />
@@ -301,15 +330,34 @@ export function BoardView({
             toTitle={titleOf(activeConnection.target)}
           />
         )}
-        {nodes.length >= 2 && visibleConnections.length === 0 && tool === 'select' && selectedNodes.length === 0 && (
-          <p className="connect-hint">
-            <Spline /> 카드 옆의 동그라미를 끌어 다른 카드 위에 놓으면 관계선으로 이어집니다
+        {linking ? (
+          <p className="connect-hint active" role="status">
+            <Spline /> 이을 카드를 누르세요 · 빈 곳을 누르거나 Esc로 취소
           </p>
+        ) : (
+          nodes.length >= 2 &&
+          visibleConnections.length === 0 &&
+          tool === 'select' &&
+          selectedNodes.length === 0 && (
+            <p className="connect-hint">
+              <Spline /> 카드를 누르고 ‘선 잇기’ → 이을 카드 누르기 (동그라미를 끌어도 됩니다)
+            </p>
+          )
         )}
         {selected && tool === 'select' && (
           <div className="selection-tools">
             {resolved(selected) && (
               <button onClick={() => onOpen(selected.data.kind, selected.data.targetId)}>상세 열기</button>
+            )}
+            {nodes.length >= 2 && (
+              <button
+                className="link-start"
+                aria-pressed={linkFrom === selected.id}
+                title="이 카드에서 다른 카드로 선 잇기"
+                onClick={() => setLinkFrom(linkFrom === selected.id ? null : selected.id)}
+              >
+                <Spline /> 선 잇기
+              </button>
             )}
             <span className="color-picker" role="radiogroup" aria-label="카드 색">
               <button
