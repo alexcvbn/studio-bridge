@@ -1,10 +1,14 @@
 export type CardKind = 'material' | 'feature'
 
+// 카드 색. 없으면 종류별 기본색(기능 보라, 자료 초록)으로 그린다.
+export type CardColor = 'purple' | 'green' | 'blue' | 'yellow' | 'orange' | 'pink' | 'gray'
+
 export interface BoardCard {
   card_id: string
   kind: CardKind
   target_id: string
   position: { x: number; y: number }
+  color?: CardColor
 }
 
 export interface CardLabel {

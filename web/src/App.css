@@ -1210,3 +1210,87 @@
     display: none;
   }
 }
+
+/* 카드 색 (선택한 카드의 색 고르기) */
+.canvas .canvas-card.color-purple,
+.swatch.color-purple {
+  --card-bg: #efe5fc;
+  --card-band: #614280;
+  --card-line: #bea7d0;
+  --card-ink: #47335d;
+}
+.canvas .canvas-card.color-green,
+.swatch.color-green {
+  --card-bg: #e2f4ec;
+  --card-band: #33766a;
+  --card-line: #9dcab9;
+  --card-ink: #244e46;
+}
+.canvas .canvas-card.color-blue,
+.swatch.color-blue {
+  --card-bg: #e3eefc;
+  --card-band: #2f5f9e;
+  --card-line: #a8c3e6;
+  --card-ink: #22406a;
+}
+.canvas .canvas-card.color-yellow,
+.swatch.color-yellow {
+  --card-bg: #fff4cc;
+  --card-band: #8a6a12;
+  --card-line: #e3cf86;
+  --card-ink: #5a4510;
+}
+.canvas .canvas-card.color-orange,
+.swatch.color-orange {
+  --card-bg: #ffe9dc;
+  --card-band: #b0562a;
+  --card-line: #efbb9c;
+  --card-ink: #6b3418;
+}
+.canvas .canvas-card.color-pink,
+.swatch.color-pink {
+  --card-bg: #fde6f0;
+  --card-band: #a83c6e;
+  --card-line: #e9a9c6;
+  --card-ink: #6a2246;
+}
+.canvas .canvas-card.color-gray,
+.swatch.color-gray {
+  --card-bg: #eef0f3;
+  --card-band: #56606e;
+  --card-line: #c5cbd3;
+  --card-ink: #313844;
+}
+.canvas .canvas-card[class*='color-'] .type-icon {
+  background: var(--card-line);
+  color: var(--card-band);
+}
+.canvas .canvas-card .decision-preview {
+  border-top-color: var(--card-line);
+}
+.color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-left: 1px solid #e3dfe8;
+  border-right: 1px solid #e3dfe8;
+  margin: 0 2px;
+}
+.selection-tools .swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--card-band);
+  background: var(--card-bg);
+  cursor: pointer;
+}
+.selection-tools .swatch-default {
+  background: linear-gradient(135deg, #efe5fc 50%, #e2f4ec 50%);
+  border-color: #9a90ad;
+}
+.selection-tools .swatch[aria-checked='true'] {
+  outline: 2px solid #8960d2;
+  outline-offset: 2px;
+}

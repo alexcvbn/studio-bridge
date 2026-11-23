@@ -30,7 +30,16 @@ import {
   X,
 } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
-import { addCard, addConnection, getBoardSync, moveCard, removeCard, type SyncStatus } from './boardSync'
+import {
+  CARD_COLORS,
+  addCard,
+  addConnection,
+  getBoardSync,
+  moveCard,
+  removeCard,
+  setCardColor,
+  type SyncStatus,
+} from './boardSync'
 import { fetchDecisions, fetchLinkedMaterials } from '../features/featuresApi'
 import { CardPicker } from './CardPicker'
 import { CanvasNavigation } from './CanvasNavigation'
@@ -39,7 +48,7 @@ import { RelationEdge } from './RelationEdge'
 import { MemoPanel } from './MemoPanel'
 import { describeSync, type AccessState } from './syncAccess'
 import type { TargetInfo } from './targetsApi'
-import type { BoardConnection, CardKind } from './types'
+import type { BoardConnection, CardColor, CardKind } from './types'
 
 export interface BoardViewProps {
   targets: TargetInfo[]
@@ -50,7 +59,7 @@ export interface BoardViewProps {
   libraryOpen: boolean
   onLibrary: () => void
 }
-type CardNode = Node<{ kind: CardKind; targetId: string }>
+type CardNode = Node<{ kind: CardKind; targetId: string; color?: CardColor }>
 type Context = { links?: string[]; decision?: string }
 const key = (kind: CardKind, id: string) => kind + ':' + id
 // 렌더마다 새로 만들면 React Flow가 경고하므로 밖에 둔다.
@@ -66,7 +75,7 @@ function syncNodes(prev: CardNode[]): CardNode[] {
       ...existing.get(card.card_id),
       id: card.card_id,
       position: card.position,
-      data: { kind: card.kind, targetId: card.target_id },
+      data: { kind: card.kind, targetId: card.target_id, color: card.color },
     }))
 }
 
@@ -151,7 +160,7 @@ export function BoardView({
       ...n,
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
-      className: 'canvas-card ' + n.data.kind,
+      className: 'canvas-card ' + n.data.kind + (n.data.color ? ' color-' + n.data.color : ''),
       data: {
         ...n.data,
         label: (
@@ -292,7 +301,7 @@ export function BoardView({
             toTitle={titleOf(activeConnection.target)}
           />
         )}
-        {nodes.length >= 2 && visibleConnections.length === 0 && tool === 'select' && (
+        {nodes.length >= 2 && visibleConnections.length === 0 && tool === 'select' && selectedNodes.length === 0 && (
           <p className="connect-hint">
             <Spline /> 카드 옆의 동그라미를 끌어 다른 카드 위에 놓으면 관계선으로 이어집니다
           </p>
@@ -302,6 +311,27 @@ export function BoardView({
             {resolved(selected) && (
               <button onClick={() => onOpen(selected.data.kind, selected.data.targetId)}>상세 열기</button>
             )}
+            <span className="color-picker" role="radiogroup" aria-label="카드 색">
+              <button
+                role="radio"
+                className="swatch swatch-default"
+                title="기본색"
+                aria-label="기본색"
+                aria-checked={!selected.data.color}
+                onClick={() => setCardColor(selected.id, null)}
+              />
+              {CARD_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  role="radio"
+                  className={'swatch color-' + c.id}
+                  title={c.name}
+                  aria-label={c.name}
+                  aria-checked={selected.data.color === c.id}
+                  onClick={() => setCardColor(selected.id, c.id)}
+                />
+              ))}
+            </span>
             <button
               title="보드에서 카드 제거"
               aria-label="보드에서 카드 제거"

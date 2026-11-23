@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { syncParams, syncUrl } from '../../shared/connection'
 import { probeAccess, type AccessState } from './syncAccess'
-import type { BoardCard, BoardConnection, CardKind, Relation } from './types'
+import type { BoardCard, BoardConnection, CardColor, CardKind, Relation } from './types'
 
 export type SyncStatus = 'connecting' | 'connected' | 'disconnected'
 
@@ -182,6 +182,28 @@ export function moveCard(cardId: string, position: { x: number; y: number }): vo
   if (card.position.x === position.x && card.position.y === position.y) return
   cards.set(cardId, { ...card, position })
 }
+
+// 카드 색을 바꾼다. null이면 종류별 기본색으로 되돌린다. 값이 그대로면 아무것도 쓰지 않는다.
+export function setCardColor(cardId: string, color: CardColor | null): void {
+  const { cards, removedCardIds } = getBoardSync()
+  const card = cards.get(cardId)
+  if (!card || removedCardIds.has(cardId)) return
+  if ((card.color ?? null) === color) return
+  const next: BoardCard = { ...card }
+  if (color) next.color = color
+  else delete next.color
+  cards.set(cardId, next)
+}
+
+export const CARD_COLORS: { id: CardColor; name: string }[] = [
+  { id: 'purple', name: '보라' },
+  { id: 'green', name: '초록' },
+  { id: 'blue', name: '파랑' },
+  { id: 'yellow', name: '노랑' },
+  { id: 'orange', name: '주황' },
+  { id: 'pink', name: '분홍' },
+  { id: 'gray', name: '회색' },
+]
 
 // 이 브라우저에서 직접 입력한 변경의 출처 표시. 메모 화면이 내 입력과 남의 입력을 구분한다.
 export const LOCAL_MEMO_ORIGIN = 'local-memo-edit'
