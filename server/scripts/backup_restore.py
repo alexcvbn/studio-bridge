@@ -196,7 +196,8 @@ def print_summary(title: str, folder: Path, v: dict) -> None:
     print(f"{title}: {folder}")
     print(f"  자료 {c['materials']}개 · 수집본 {c['snapshots']}개 · 기능 {c['features']}개 · "
           f"연결 {c['feature_materials']}개 · 결정 {c['decisions']}개")
-    print(f"  보드 카드 {len(b['cards'])}장 · 제거 기록 {len(b['removed_card_ids'])}개 · 메모 {len(b['memo'])}자 · "
+    print(f"  보드 카드 {len(b['cards'])}장 · 제거 기록 {len(b['removed_card_ids'])}개 · "
+          f"연결선 {len(b.get('links', []))}개 · 메모 {len(b['memo'])}자 · "
           f"끊어진 카드 참조 {len(v['card_refs']['broken_card_ids'])}개")
 
 
@@ -260,8 +261,11 @@ def compare_values(r: Report, want: dict, got: dict) -> None:
     r.check("결정 (번호·본문 SHA-256·표시명·시각)", wd["decisions"] == gd["decisions"],
             diff_keys(wd["decisions"], gd["decisions"]))
     wb, gb = want["board"], got["board"]
-    r.check("보드 카드 (ID·종류·대상·위치)", wb["cards"] == gb["cards"])
+    r.check("보드 카드 (ID·종류·대상·위치·색·크기)", wb["cards"] == gb["cards"])
     r.check("보드 제거 기록", wb["removed_card_ids"] == gb["removed_card_ids"])
+    # 연결선 기능 이전에 만든 백업에는 links가 없다. 그때 보드에는 선이 없었으므로 빈 목록으로 본다.
+    r.check("카드 연결선 (양 끝 카드·관계·이름)", wb.get("links", []) == gb.get("links", []))
+    r.check("지운 연결선 기록", wb.get("removed_link_ids", []) == gb.get("removed_link_ids", []))
     r.check("공동 메모 (글자 그대로)", wb["memo"] == gb["memo"])
     r.check("카드 참조: 모든 카드의 자료·기능이 DB에 있음",
             got["card_refs"]["broken_card_ids"] == [], got["card_refs"]["broken_card_ids"])
