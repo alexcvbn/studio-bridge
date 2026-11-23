@@ -1337,3 +1337,37 @@
   background: var(--soft);
   border-radius: 8px;
 }
+
+/* 카드 크기 조절 */
+.canvas .react-flow__node.canvas-card.sized {
+  display: flex;
+}
+.canvas .canvas-card .card-body {
+  width: 100%;
+  min-width: 0;
+}
+.canvas .canvas-card.sized .card-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.canvas .canvas-card.sized .decision-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.canvas .canvas-card.sized .card-foot {
+  margin-top: auto;
+}
+.canvas .react-flow__resize-control.card-resize-handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: #fff;
+  border: 2px solid #8960d2;
+}
+.canvas .react-flow__resize-control.card-resize-line {
+  border-color: #8960d2;
+}

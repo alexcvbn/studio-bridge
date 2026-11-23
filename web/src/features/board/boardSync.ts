@@ -193,6 +193,16 @@ export function moveCard(cardId: string, position: { x: number; y: number }): vo
   cards.set(cardId, { ...card, position })
 }
 
+// 카드 크기를 바꾼다. 위치·색처럼 해당 카드 항목만 다시 쓴다. 크기가 그대로면 아무것도 쓰지 않는다.
+export function resizeCard(cardId: string, size: { width: number; height: number }): void {
+  const { cards, removedCardIds } = getBoardSync()
+  const card = cards.get(cardId)
+  if (!card || removedCardIds.has(cardId)) return
+  const next = { width: Math.round(size.width), height: Math.round(size.height) }
+  if (card.size && card.size.width === next.width && card.size.height === next.height) return
+  cards.set(cardId, { ...card, size: next })
+}
+
 // 카드 색을 바꾼다. null이면 종류별 기본색으로 되돌린다. 값이 그대로면 아무것도 쓰지 않는다.
 export function setCardColor(cardId: string, color: CardColor | null): void {
   const { cards, removedCardIds } = getBoardSync()

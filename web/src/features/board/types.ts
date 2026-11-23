@@ -9,6 +9,8 @@ export interface BoardCard {
   target_id: string
   position: { x: number; y: number }
   color?: CardColor
+  // 사용자가 크기를 바꾼 카드만 가진다. 없으면 기본 크기(너비 224, 높이는 내용에 맞춤).
+  size?: { width: number; height: number }
 }
 
 export interface CardLabel {

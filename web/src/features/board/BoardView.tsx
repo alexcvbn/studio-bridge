@@ -5,7 +5,6 @@ import {
   ConnectionLineType,
   ConnectionMode,
   MarkerType,
-  Position,
   ReactFlow,
   applyNodeChanges,
   type Edge,
@@ -13,6 +12,7 @@ import {
   type EdgeTypes,
   type Node,
   type NodeChange,
+  type NodeTypes,
 } from '@xyflow/react'
 import {
   Code2,
@@ -37,12 +37,14 @@ import {
   getBoardSync,
   moveCard,
   removeCard,
+  resizeCard,
   setCardColor,
   type SyncStatus,
 } from './boardSync'
 import { fetchDecisions, fetchLinkedMaterials } from '../features/featuresApi'
 import { CardPicker } from './CardPicker'
 import { CanvasNavigation } from './CanvasNavigation'
+import { CardNode } from './CardNode'
 import { ConnectionTools } from './ConnectionTools'
 import { RelationEdge } from './RelationEdge'
 import { MemoPanel } from './MemoPanel'
@@ -64,6 +66,7 @@ type Context = { links?: string[]; decision?: string }
 const key = (kind: CardKind, id: string) => kind + ':' + id
 // 렌더마다 새로 만들면 React Flow가 경고하므로 밖에 둔다.
 const edgeTypes: EdgeTypes = { relation: RelationEdge }
+const nodeTypes: NodeTypes = { card: CardNode }
 const readConnections = () => {
   const { connections, removedConnectionIds } = getBoardSync()
   return [...connections.values()].filter((c) => !removedConnectionIds.has(c.connection_id))
@@ -78,6 +81,8 @@ function syncNodes(prev: CardNode[]): CardNode[] {
       ...existing.get(card.card_id),
       id: card.card_id,
       position: card.position,
+      width: card.size?.width,
+      height: card.size?.height,
       data: { kind: card.kind, targetId: card.target_id, color: card.color },
     }))
 }
@@ -157,7 +162,11 @@ export function BoardView({
 
   const handleChanges = useCallback((changes: NodeChange<CardNode>[]) => {
     setNodes((prev) => applyNodeChanges(changes, prev))
-    for (const c of changes) if (c.type === 'position' && c.position) moveCard(c.id, c.position)
+    for (const c of changes) {
+      if (c.type === 'position' && c.position) moveCard(c.id, c.position)
+      // 크기 조절 손잡이로 바꾼 크기만 저장한다(화면이 잰 크기는 저장하지 않는다).
+      if (c.type === 'dimensions' && c.setAttributes && c.dimensions) resizeCard(c.id, c.dimensions)
+    }
   }, [])
   // 관계선 선택만 화면 상태로 둔다. 선 자체는 공유 보드의 connections에서 그린다.
   const handleEdgeChanges = useCallback((changes: EdgeChange[]) => {
@@ -173,9 +182,12 @@ export function BoardView({
     const decision = feature ? contexts[n.data.targetId]?.decision : undefined
     return {
       ...n,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-      className: 'canvas-card ' + n.data.kind + (n.data.color ? ' color-' + n.data.color : ''),
+      type: 'card',
+      className:
+        'canvas-card ' +
+        n.data.kind +
+        (n.data.color ? ' color-' + n.data.color : '') +
+        (n.width ? ' sized' : ''),
       data: {
         ...n.data,
         label: (
@@ -267,6 +279,7 @@ export function BoardView({
           onNodesChange={handleChanges}
           onEdgesChange={handleEdgeChanges}
           edgeTypes={edgeTypes}
+          nodeTypes={nodeTypes}
           nodesConnectable={tool === 'select'}
           connectOnClick
           connectionMode={ConnectionMode.Loose}
