@@ -57,6 +57,7 @@ export interface BoardViewProps {
   targets: TargetInfo[]
   load: 'loading' | 'ready' | 'error'
   revision: number
+  onReloadTargets: () => void
   onOpen: (kind: CardKind, id: string) => void
   onExplore: () => void
   libraryOpen: boolean
@@ -65,6 +66,7 @@ export interface BoardViewProps {
 type CardNode = Node<{ kind: CardKind; targetId: string; color?: CardColor }>
 type Context = { links?: string[]; decision?: string }
 const key = (kind: CardKind, id: string) => kind + ':' + id
+const MISSING_RETRY_MS = 5000
 // 렌더마다 새로 만들면 React Flow가 경고하므로 밖에 둔다.
 const edgeTypes: EdgeTypes = { relation: RelationEdge }
 const nodeTypes: NodeTypes = { card: CardNode }
@@ -92,6 +94,7 @@ export function BoardView({
   targets,
   load,
   revision,
+  onReloadTargets,
   onOpen,
   onExplore,
   libraryOpen,
@@ -177,6 +180,13 @@ export function BoardView({
   }, [])
   const catalog = new Map(targets.map((t) => [key(t.kind, t.target_id), t]))
   const resolved = (n: CardNode) => catalog.get(key(n.data.kind, n.data.targetId))
+  // 목록에 없는 카드가 있는 동안에는 몇 초마다 목록을 다시 읽어, 방금 만든 대상이면 제목이 나타나게 한다(10회차 #38).
+  const hasMissingCard = load === 'ready' && nodes.some((n) => !resolved(n))
+  useEffect(() => {
+    if (!hasMissingCard) return
+    const timer = setInterval(onReloadTargets, MISSING_RETRY_MS)
+    return () => clearInterval(timer)
+  }, [hasMissingCard, onReloadTargets])
   const display = nodes.map((n) => {
     const t = resolved(n)
     const feature = n.data.kind === 'feature'

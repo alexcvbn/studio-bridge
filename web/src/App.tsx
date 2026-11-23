@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   X,
   Code2,
@@ -30,6 +30,9 @@ export default function App() {
   const [targets, setTargets] = useState<TargetInfo[]>([])
   const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading')
   const [revision, setRevision] = useState(0)
+  // 목록만 조용히 다시 읽는 신호(10회차 #38). revision과 달리 상세 화면은 다시 읽지 않는다.
+  const [targetsReload, setTargetsReload] = useState(0)
+  const reloadTargets = useCallback(() => setTargetsReload((n) => n + 1), [])
   const [selection, setSelection] = useState<Selection | null>(null)
   const [query, setQuery] = useState('')
   const [pane, setPane] = useState<Pane>('board')
@@ -57,6 +60,36 @@ export default function App() {
       alive = false
     }
   }, [revision])
+
+  // 조용히 다시 읽다 실패하면(서버가 잠깐 꺼짐) 읽어 둔 목록과 표시를 그대로 둔다.
+  useEffect(() => {
+    if (targetsReload === 0) return
+    let alive = true
+    fetchTargets().then(
+      (items) => {
+        if (!alive) return
+        setTargets(items)
+        setLoad('ready')
+      },
+      () => {},
+    )
+    return () => {
+      alive = false
+    }
+  }, [targetsReload])
+
+  // 보드를 연 뒤에 팀원이 보낸 자료·만든 기능은 처음 읽은 목록에 없다. 창으로 돌아오면 다시 읽는다.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reloadTargets()
+    }
+    window.addEventListener('focus', reloadTargets)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', reloadTargets)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [reloadTargets])
 
   function open(kind: CardKind, id: string) {
     setSelection({ kind, id })
@@ -223,6 +256,7 @@ export default function App() {
           targets={targets}
           load={load}
           revision={revision}
+          onReloadTargets={reloadTargets}
           onOpen={open}
           libraryOpen={libraryOpen}
           onLibrary={() => {
