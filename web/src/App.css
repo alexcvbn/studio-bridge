@@ -1371,3 +1371,102 @@
 .canvas .react-flow__resize-control.card-resize-line {
   border-color: #8960d2;
 }
+
+/* 설정(톱니바퀴): 연결 상태·팀 키를 한곳에 */
+.settings-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 41px;
+  height: 41px;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #d9d4df;
+  border-radius: 13px;
+  box-shadow: var(--chrome-shadow);
+  color: #48366c;
+  cursor: pointer;
+}
+.settings-toggle svg {
+  width: 19px;
+  height: 19px;
+}
+.settings-toggle[aria-expanded='true'] {
+  background: var(--soft);
+}
+.settings-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+}
+.settings-popup {
+  width: min(340px, 92vw);
+}
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.settings-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.settings-popup h4 {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--quiet);
+}
+.status-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.status-list li {
+  display: grid;
+  grid-template-columns: 8px 72px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.status-list i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-list span {
+  color: var(--quiet);
+}
+.status-list strong {
+  font-weight: 600;
+}
+.settings-note {
+  font-size: 12px;
+  color: #6a4b12;
+  background: #fff6dd;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.settings-recheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+}
+.settings-recheck svg {
+  width: 13px;
+  height: 13px;
+}
+@media (max-width: 900px) {
+  .settings-toggle {
+    width: 36px;
+    height: 36px;
+  }
+}

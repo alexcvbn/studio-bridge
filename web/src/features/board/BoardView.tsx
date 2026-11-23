@@ -45,10 +45,11 @@ import { fetchDecisions, fetchLinkedMaterials } from '../features/featuresApi'
 import { CardPicker } from './CardPicker'
 import { CanvasNavigation } from './CanvasNavigation'
 import { CardNode } from './CardNode'
+import { HandleRepair } from './HandleRepair'
 import { ConnectionTools } from './ConnectionTools'
 import { RelationEdge } from './RelationEdge'
 import { MemoPanel } from './MemoPanel'
-import { describeSync, type AccessState } from './syncAccess'
+import type { AccessState } from './syncAccess'
 import type { TargetInfo } from './targetsApi'
 import type { BoardConnection, CardColor, CardKind } from './types'
 
@@ -265,7 +266,6 @@ export function BoardView({
   const linking = tool === 'select' && linkFrom !== null && nodes.some((n) => n.id === linkFrom)
   const selectedNodes = nodes.filter((n) => n.selected)
   const selected = selectedNodes.length === 1 ? selectedNodes[0] : undefined
-  const sync = describeSync(status, access)
   function dismissPicker() {
     setAdding(false)
     addTrigger.current?.focus()
@@ -322,6 +322,7 @@ export function BoardView({
         >
           <Background variant={BackgroundVariant.Dots} gap={22} size={1.25} color="#ccc7d4" />
           <CanvasNavigation />
+          <HandleRepair />
         </ReactFlow>
         {nodes.length === 0 && (
           <div className="canvas-empty">
@@ -411,10 +412,6 @@ export function BoardView({
         <span data-testid="connection-count">
           <Spline />
           연결 {visibleConnections.length}개
-        </span>
-        <span className={'sync-line ' + sync.tone} data-testid="sync-status">
-          <i />
-          {sync.text}
         </span>
       </div>
       <div className="dock-wrap">
