@@ -180,13 +180,15 @@ export function BoardView({
   }, [])
   const catalog = new Map(targets.map((t) => [key(t.kind, t.target_id), t]))
   const resolved = (n: CardNode) => catalog.get(key(n.data.kind, n.data.targetId))
-  // 목록에 없는 카드가 있는 동안에는 몇 초마다 목록을 다시 읽어, 방금 만든 대상이면 제목이 나타나게 한다(10회차 #38).
-  const hasMissingCard = load === 'ready' && nodes.some((n) => !resolved(n))
+  // 목록에 없는 카드가 생기면 바로 한 번 다시 읽고, 그래도 없으면 몇 초마다 다시 읽어 방금 만든 대상의 제목이 나타나게 한다(10회차 #38).
+  // 팀원이 막 만든 기능 카드를 올렸을 때 5초 동안 "찾을 수 없음"으로 보이지 않게, 없는 카드 목록이 바뀔 때마다 즉시 읽는다.
+  const missingKey = load === 'ready' ? nodes.filter((n) => !resolved(n)).map((n) => n.id).join(',') : ''
   useEffect(() => {
-    if (!hasMissingCard) return
+    if (missingKey === '') return
+    onReloadTargets()
     const timer = setInterval(onReloadTargets, MISSING_RETRY_MS)
     return () => clearInterval(timer)
-  }, [hasMissingCard, onReloadTargets])
+  }, [missingKey, onReloadTargets])
   const display = nodes.map((n) => {
     const t = resolved(n)
     const feature = n.data.kind === 'feature'
