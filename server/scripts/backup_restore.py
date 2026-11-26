@@ -117,8 +117,9 @@ def board_values(board: Path) -> dict:
         fail("node를 찾지 못했습니다. 보드(Yjs)를 읽으려면 Node.js가 필요합니다.")
     if not (REPO_DIR / "sync" / "node_modules" / "y-leveldb").exists():
         fail("sync/node_modules에 y-leveldb가 없습니다. sync 폴더에서 `npm ci`를 먼저 실행하세요.")
+    # node는 UTF-8로 내보낸다. 인코딩을 지정하지 않으면 한글 Windows(cp949)에서 메모 같은 한글을 읽다 실패한다.
     res = subprocess.run(["node", str(BOARD_DUMP), str(board)], capture_output=True, text=True,
-                         cwd=REPO_DIR / "sync")
+                         encoding="utf-8", cwd=REPO_DIR / "sync")
     if res.returncode != 0:
         fail(f"보드를 읽지 못했습니다: {res.stderr.strip()}")
     return json.loads(res.stdout)
