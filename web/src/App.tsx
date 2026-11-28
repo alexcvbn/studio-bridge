@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Users,
   Workflow,
 } from 'lucide-react'
 import { BoardView } from './features/board'
@@ -18,13 +19,18 @@ import type { CardKind } from './features/board/types'
 import { FeatureView } from './features/features/FeatureView'
 import { createFeature } from './features/features/featuresApi'
 import { MaterialLibrary } from './features/materials/MaterialLibrary'
+import { MeetingView } from './features/meeting/MeetingView'
 import { SourceUidSearch } from './features/materials/SourceUidSearch'
 import { ConnectionPanel } from './shared/ConnectionPanel'
 import './App.css'
 import './theme-flat.css'
+import './features/meeting/meeting.css'
 
 type Selection = { kind: CardKind; id: string }
 type Pane = 'explorer' | 'board' | 'inspector'
+type Space = 'board' | 'meeting'
+// 주소 끝이 #meeting이면 회의 공간으로 연다(초대 주소·새로고침에서도 같은 공간).
+const spaceFromHash = (): Space => (location.hash === '#meeting' ? 'meeting' : 'board')
 
 export default function App() {
   const [targets, setTargets] = useState<TargetInfo[]>([])
@@ -43,6 +49,16 @@ export default function App() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const refresh = () => setRevision((n) => n + 1)
+  const [space, setSpace] = useState<Space>(spaceFromHash)
+  useEffect(() => {
+    const onHash = () => setSpace(spaceFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  function goSpace(next: Space) {
+    setSpace(next)
+    history.replaceState(null, '', next === 'meeting' ? '#meeting' : location.pathname + location.search)
+  }
 
   useEffect(() => {
     let alive = true
@@ -187,6 +203,21 @@ export default function App() {
     )
   }
 
+  if (space === 'meeting')
+    return (
+      <MeetingView
+        targets={targets}
+        load={load}
+        revision={revision}
+        onReloadTargets={reloadTargets}
+        onExit={() => goSpace('board')}
+        onOpenInBoard={(kind, id) => {
+          goSpace('board')
+          open(kind, id)
+        }}
+      />
+    )
+
   return (
     <div className="shell" data-pane={pane} data-library={libraryOpen} data-inspector={inspectorOpen}>
       <header className="topbar">
@@ -199,6 +230,9 @@ export default function App() {
           </div>
           <span className="bar-divider" />
           <h1>협업 보드</h1>
+          <button className="meeting-entry" onClick={() => goSpace('meeting')} title="실시간 회의 공간으로 가기">
+            <Users /> 회의 공간
+          </button>
         </div>
         <ConnectionPanel />
       </header>
