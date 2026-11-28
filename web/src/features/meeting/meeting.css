@@ -1,0 +1,1393 @@
+/* 회의 공간 (피그마·10/23 컨셉 그림 참고). 협업 보드의 .shell 테마와 섞이지 않게 .meeting-shell 아래에만 쓴다. */
+.meeting-shell {
+  --m-ink: #1b1f24;
+  --m-quiet: #6b7280;
+  --m-line: #e5e7eb;
+  --m-soft: #f3f4f6;
+  --m-blue: #1f6feb;
+  --m-blue-soft: #e8f0fe;
+  --m-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 14px rgba(16, 24, 40, 0.08);
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr);
+  background: #fff;
+  color: var(--m-ink);
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 14px;
+}
+.meeting-shell button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.meeting-shell svg {
+  flex: none;
+}
+.meeting-shell .muted {
+  color: var(--m-quiet);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+/* ---------- 위쪽 줄 ---------- */
+.m-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid var(--m-line);
+  background: #fff;
+  z-index: 10;
+}
+.m-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+.m-brand .mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--m-blue);
+  color: #fff;
+}
+.m-brand .mark svg {
+  width: 16px;
+  height: 16px;
+}
+.m-crumbs {
+  display: flex;
+  gap: 8px;
+  color: var(--m-quiet);
+  padding-left: 16px;
+  border-left: 1px solid var(--m-line);
+}
+.m-crumbs strong {
+  color: var(--m-ink);
+}
+.space-switch {
+  display: flex;
+  background: var(--m-soft);
+  border-radius: 9px;
+  padding: 3px;
+  margin-left: 6px;
+}
+.space-switch button {
+  border: 0;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--m-quiet);
+}
+.space-switch button[aria-selected='true'] {
+  background: #fff;
+  color: var(--m-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.presence-bar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.avatars {
+  display: flex;
+}
+.meeting-shell .avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  border: 2px solid #fff;
+  flex: none;
+  padding: 0;
+}
+.avatars .avatar + .avatar {
+  margin-left: -7px;
+}
+.avatars .avatar.following,
+.avatars .avatar.presenting {
+  outline: 2px solid var(--who);
+  outline-offset: 1px;
+  z-index: 1;
+}
+.avatars .avatar.more {
+  background: #9ca3af;
+}
+.presence-bar .people-count {
+  color: var(--m-quiet);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.bar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--m-line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.bar-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.bar-btn:hover {
+  background: var(--m-soft);
+}
+.bar-btn.on {
+  background: var(--m-blue);
+  border-color: var(--m-blue);
+  color: #fff;
+}
+.name-pop {
+  position: absolute;
+  top: 44px;
+  left: 0;
+  width: 240px;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 12px;
+  box-shadow: var(--m-shadow);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  z-index: 30;
+}
+.name-pop label {
+  font-size: 12px;
+  color: var(--m-quiet);
+}
+.name-pop > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.meeting-shell input:not([type='file']),
+.meeting-shell textarea {
+  font: inherit;
+  color: inherit;
+}
+.name-pop input,
+.name-modal input,
+.feature-pick input,
+.tree-create input {
+  border: 1px solid var(--m-line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  outline: none;
+}
+.name-pop input:focus,
+.name-modal input:focus,
+.feature-pick input:focus,
+.tree-create input:focus {
+  border-color: var(--m-blue);
+  box-shadow: 0 0 0 3px var(--m-blue-soft);
+}
+.meeting-shell button.primary {
+  background: var(--m-blue);
+  border: 0;
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+}
+.meeting-shell button.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.name-pop button:not(.primary) {
+  border: 1px solid var(--m-line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+/* 설정(톱니) 버튼은 협업 보드 것을 그대로 쓴다 */
+.m-top .connection {
+  position: relative;
+}
+
+/* ---------- 본문 ---------- */
+.m-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  min-height: 0;
+}
+.m-main {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+}
+.m-canvas {
+  position: relative;
+  background: #fafafa;
+  min-height: 0;
+}
+.m-canvas[data-following] {
+  box-shadow: inset 0 0 0 3px var(--follow);
+}
+.m-canvas[data-tool='hand'] .react-flow__pane {
+  cursor: grab;
+}
+.m-canvas[data-tool='note'] .react-flow__pane,
+.m-canvas[data-tool='comment'] .react-flow__pane {
+  cursor: crosshair;
+}
+.m-canvas[data-tool='connect'] .react-flow__node {
+  cursor: alias;
+}
+
+/* 도구 막대 */
+.m-toolbar-wrap {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 5;
+}
+.m-toolbar-wrap h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.6px;
+}
+.m-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: var(--m-shadow);
+}
+.m-toolbar > button:not(.primary) {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: #374151;
+}
+.m-toolbar > button:not(.primary):hover {
+  background: var(--m-soft);
+}
+.m-toolbar > button[aria-pressed='true'] {
+  background: var(--m-blue-soft);
+  color: var(--m-blue);
+}
+.m-toolbar svg {
+  width: 18px;
+  height: 18px;
+}
+.m-toolbar .sep {
+  width: 1px;
+  height: 22px;
+  background: var(--m-line);
+  margin: 0 6px;
+}
+.m-toolbar button.primary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 14px;
+}
+.m-toolbar button.primary svg {
+  width: 16px;
+  height: 16px;
+}
+.feature-pick {
+  position: absolute;
+  top: 52px;
+  left: 270px;
+  width: 280px;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 12px;
+  box-shadow: var(--m-shadow);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.pick-list {
+  max-height: 280px;
+  overflow: auto;
+  display: grid;
+}
+.pick-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px;
+  border-radius: 8px;
+}
+.pick-list button:hover {
+  background: var(--m-soft);
+}
+.pick-list svg {
+  width: 16px;
+  height: 16px;
+  color: var(--m-blue);
+}
+.pick-list small {
+  margin-left: auto;
+  color: var(--m-quiet);
+}
+
+.m-hint,
+.m-toast {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  background: #1f2937;
+  color: #fff;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  z-index: 6;
+  white-space: nowrap;
+}
+.m-hint {
+  top: 76px;
+}
+.m-toast {
+  bottom: 22px;
+}
+.follow-banner {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 8px 6px 14px;
+  border-radius: 0 0 10px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 7;
+}
+.meeting-shell .follow-banner button {
+  border: 0;
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 12px;
+}
+.m-selection {
+  position: absolute;
+  top: 76px;
+  left: 22px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 10px;
+  padding: 4px 4px 4px 10px;
+  box-shadow: var(--m-shadow);
+  z-index: 5;
+  font-size: 12.5px;
+}
+.m-selection span {
+  color: var(--m-quiet);
+  margin-right: 4px;
+}
+.m-selection button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 5px 8px;
+  border-radius: 7px;
+}
+.m-selection button:hover {
+  background: var(--m-soft);
+}
+.m-selection svg {
+  width: 14px;
+  height: 14px;
+}
+.m-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+  color: var(--m-quiet);
+}
+.m-empty h2 {
+  color: var(--m-ink);
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.m-empty p {
+  margin: 0;
+  max-width: 380px;
+}
+.m-canvas .zoom-tools {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 10px;
+  padding: 3px;
+  box-shadow: var(--m-shadow);
+}
+.m-canvas .zoom-tools button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+}
+.m-canvas .zoom-tools button:hover {
+  background: var(--m-soft);
+}
+.m-canvas .zoom-tools svg {
+  width: 15px;
+  height: 15px;
+}
+.m-canvas .zoom-tools output {
+  font-size: 12px;
+  min-width: 44px;
+  text-align: center;
+}
+
+/* 실시간 커서 */
+.live-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  z-index: 1000;
+  transition: transform 60ms linear;
+}
+.live-cursor span {
+  position: absolute;
+  left: 16px;
+  top: 18px;
+  background: var(--who);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ---------- 캔버스 카드 ---------- */
+.m-canvas .react-flow__node-item {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.m-canvas .react-flow__node-item.selected .m-card {
+  border-color: var(--m-blue);
+  box-shadow: 0 0 0 1px var(--m-blue), var(--m-shadow);
+}
+.m-resize-line {
+  border-color: var(--m-blue) !important;
+}
+.m-resize-handle {
+  width: 9px !important;
+  height: 9px !important;
+  background: #fff !important;
+  border: 1.5px solid var(--m-blue) !important;
+  border-radius: 2px !important;
+}
+.m-canvas .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 1.5px solid #9ca3af;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.m-canvas .react-flow__node:hover .react-flow__handle,
+.m-canvas .react-flow__node.selected .react-flow__handle,
+.m-canvas[data-tool='connect'] .react-flow__handle {
+  opacity: 1;
+}
+.m-canvas .m-edge .react-flow__edge-path {
+  stroke: #9ca3af;
+  stroke-width: 1.6;
+}
+.m-canvas .m-edge.selected .react-flow__edge-path {
+  stroke: var(--m-blue);
+  stroke-width: 2.4;
+}
+.peer-tags {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  display: flex;
+  gap: 4px;
+}
+.peer-tags span {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px 6px 0 0;
+}
+.m-card {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  border: 1px solid var(--m-line);
+  border-radius: 14px;
+  box-shadow: var(--m-shadow);
+  overflow: hidden;
+  text-align: left;
+}
+.meeting-shell .editable {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 2px 5px;
+  margin: 0 -5px;
+  outline: none;
+  resize: none;
+}
+.meeting-shell .editable:hover {
+  background: var(--m-soft);
+}
+.meeting-shell .editable:focus {
+  background: #fff;
+  border-color: var(--m-blue);
+  box-shadow: 0 0 0 3px var(--m-blue-soft);
+}
+.meeting-shell .editable::placeholder {
+  color: #9ca3af;
+}
+
+/* 기능 카드 */
+.m-card.feature {
+  padding: 18px 20px 0;
+  display: flex;
+  flex-direction: column;
+}
+.m-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.m-card-head h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  line-height: 1.3;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-badge i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.status-badge.discussing {
+  background: #fff4e5;
+  color: #c2410c;
+}
+.status-badge.agreed {
+  background: #e7f6ec;
+  color: #15803d;
+}
+.status-badge.hold {
+  background: #f1f2f4;
+  color: #6b7280;
+}
+.m-summary {
+  color: #4b5563;
+  margin-top: 6px !important;
+  font-size: 14px;
+}
+.m-card.feature section {
+  border-top: 1px solid var(--m-line);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.m-card.feature section:first-of-type {
+  margin-top: 12px;
+}
+.m-card.feature h4 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+}
+.change-box {
+  background: #f1f6fe;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+.change-box .tag {
+  justify-self: start;
+  background: #fff;
+  border: 1px solid #c7dafd;
+  color: var(--m-blue);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 6px;
+}
+.change-row {
+  display: grid;
+  grid-template-columns: 1fr 70px auto 70px 18px;
+  align-items: center;
+  gap: 4px;
+}
+.change-row .c-label {
+  color: #4b5563;
+}
+.change-row .c-val {
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+}
+.change-row .c-val.after {
+  color: var(--m-blue);
+}
+.change-row .arrow {
+  color: #6b7280;
+}
+.row-x {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: #9ca3af;
+  opacity: 0;
+}
+.change-row:hover .row-x,
+.check-row:hover .row-x {
+  opacity: 1;
+}
+.row-x svg {
+  width: 13px;
+  height: 13px;
+}
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--m-quiet);
+  font-size: 12.5px;
+  padding: 5px 0 0;
+}
+.add-row:hover {
+  color: var(--m-blue);
+}
+.add-row svg {
+  width: 13px;
+  height: 13px;
+}
+.check-row {
+  display: grid;
+  grid-template-columns: 18px 1fr 18px;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 0;
+}
+.check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid #c4c9d0;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.check[aria-checked='true'] {
+  background: var(--m-blue);
+  border-color: var(--m-blue);
+  color: #fff;
+}
+.check svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 3;
+}
+.check-text.done {
+  color: var(--m-quiet);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: var(--m-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+}
+.chip:hover {
+  background: #e5e7eb;
+}
+.chip svg {
+  width: 14px;
+  height: 14px;
+  color: #4b5563;
+}
+.m-card.feature footer {
+  margin-top: auto;
+  border-top: 1px solid var(--m-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 12px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--m-quiet);
+}
+.m-card.feature footer .link {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--m-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.m-card.feature footer svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 코드 카드 */
+.m-card.code {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.code-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--m-soft);
+  display: grid;
+  place-items: center;
+}
+.code-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.m-card.code > div {
+  min-width: 0;
+  flex: 1;
+}
+.m-card.code strong {
+  display: block;
+  font-size: 14px;
+}
+.m-card.code small {
+  display: block;
+  color: var(--m-quiet);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-card.code em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--m-quiet);
+  background: var(--m-soft);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+/* 메모 */
+.m-card.note {
+  background: #fff6c7;
+  border-color: #f3e39b;
+  padding: 12px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+}
+.note-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.m-card.note .editable:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+.m-card.note footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8a6d00;
+}
+.m-card.note footer svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* 의견 */
+.m-card.comment {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.comment-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.comment-body strong {
+  font-size: 14px;
+}
+.comment-text {
+  color: #374151;
+}
+.comment-body small {
+  color: var(--m-quiet);
+  font-size: 11.5px;
+}
+
+/* 이미지 */
+.m-card.image {
+  display: flex;
+  flex-direction: column;
+}
+.m-card.image img,
+.img-empty {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  object-fit: cover;
+  display: block;
+  background: var(--m-soft);
+}
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--m-line);
+  font-size: 13px;
+}
+.caption svg {
+  width: 15px;
+  height: 15px;
+  color: #4b5563;
+}
+
+/* ---------- 팀 채팅 ---------- */
+.team-chat {
+  border-top: 1px solid var(--m-line);
+  background: #fff;
+  display: grid;
+}
+.team-chat.open {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 230px;
+}
+.team-chat header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+}
+.team-chat h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.team-chat .people {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--m-quiet);
+  font-size: 13px;
+}
+.team-chat .people svg {
+  width: 15px;
+  height: 15px;
+}
+.team-chat .unread {
+  background: var(--m-blue);
+  color: #fff;
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.meeting-shell button.icon {
+  border: 0;
+  background: transparent;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+}
+.meeting-shell button.icon:hover {
+  background: var(--m-soft);
+}
+.meeting-shell button.icon svg {
+  width: 17px;
+  height: 17px;
+}
+.chat-list {
+  overflow: auto;
+  padding: 0 18px 6px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+.chat-msg {
+  display: grid;
+  grid-template-columns: 36px auto 1fr;
+  align-items: center;
+  column-gap: 10px;
+  padding-top: 8px;
+}
+.chat-msg.grouped {
+  padding-top: 2px;
+}
+.chat-msg .avatar {
+  width: 32px;
+  height: 32px;
+}
+.chat-msg.grouped .avatar {
+  visibility: hidden;
+}
+.chat-msg .who {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+.chat-msg.grouped .who {
+  display: none;
+}
+.chat-msg .who small {
+  color: var(--m-quiet);
+  font-size: 11.5px;
+}
+.chat-msg p {
+  margin: 0;
+  justify-self: start;
+  background: var(--m-soft);
+  border-radius: 12px;
+  padding: 7px 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-msg.grouped p {
+  grid-column: 3;
+}
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 8px 18px 14px;
+}
+.chat-input .attach {
+  margin-left: 0 !important;
+  border: 1px solid var(--m-line) !important;
+  width: 40px !important;
+  height: 40px !important;
+}
+.chat-input input {
+  flex: 1;
+  border: 1px solid var(--m-line);
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 40px;
+  outline: none;
+}
+.chat-input input:focus {
+  border-color: var(--m-blue);
+  box-shadow: 0 0 0 3px var(--m-blue-soft);
+}
+.chat-input .send {
+  width: 44px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--m-blue);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+.chat-input .send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.chat-input svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- 기능 트리 ---------- */
+.feature-tree {
+  border-left: 1px solid var(--m-line);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tree-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 10px;
+}
+.tree-head h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+}
+.meeting-shell button.square {
+  margin: 0;
+  border: 1px solid var(--m-line);
+  width: 32px;
+  height: 32px;
+}
+.tree-search {
+  margin: 0 18px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--m-soft);
+  border-radius: 9px;
+  padding: 0 10px;
+  height: 36px;
+  color: var(--m-quiet);
+}
+.tree-search svg {
+  width: 15px;
+  height: 15px;
+}
+.tree-search input {
+  border: 0;
+  background: transparent;
+  outline: none;
+  flex: 1;
+}
+.tree-create {
+  margin: 0 18px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tree-create input {
+  flex: 1;
+  min-width: 0;
+}
+.tree-create button {
+  border: 0;
+  background: var(--m-blue);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+.tree-create p {
+  width: 100%;
+  margin: 0;
+  color: #b91c1c;
+  font-size: 12px;
+}
+.tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 10px 10px;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+}
+.tree-row svg {
+  width: 17px;
+  height: 17px;
+}
+.twisty {
+  border: 0;
+  background: transparent;
+  width: 24px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #6b7280;
+  padding: 0;
+}
+.twisty svg {
+  width: 15px;
+  height: 15px;
+}
+.row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 14px;
+}
+.row-main svg {
+  color: var(--m-blue);
+}
+.row-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-main small {
+  margin-left: auto;
+  color: var(--m-quiet);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+button.row-main:hover,
+button.tree-row.leaf:hover {
+  background: var(--m-blue-soft);
+}
+.tree-children {
+  margin-left: 34px;
+  border-left: 1px solid var(--m-line);
+  padding-left: 6px;
+  display: grid;
+}
+.tree-children .muted {
+  padding-left: 8px;
+}
+.tree-row.leaf {
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  text-align: left;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.tree-row.leaf svg {
+  color: #4b5563;
+  width: 15px;
+  height: 15px;
+}
+.tree-foot {
+  border-top: 1px solid var(--m-line);
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--m-quiet);
+}
+.tree-foot button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--m-line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--m-ink);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tree-foot svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 이름 정하기 */
+.name-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+.name-modal form {
+  position: relative;
+  width: min(360px, calc(100% - 32px));
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  display: grid;
+  gap: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+.name-modal h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.name-modal p {
+  margin: 0 0 4px;
+  color: var(--m-quiet);
+  font-size: 13px;
+}
+.name-modal .close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: 0;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+}
+.name-modal .close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 좁은 화면: 트리를 아래로 */
+@media (max-width: 1000px) {
+  .m-crumbs,
+  .presence-bar .people-count {
+    display: none;
+  }
+  .m-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 220px;
+  }
+  .feature-tree {
+    border-left: 0;
+    border-top: 1px solid var(--m-line);
+  }
+  .m-toolbar-wrap h1 {
+    display: none;
+  }
+}
+
+/* 협업 보드 위쪽의 "회의 공간" 들어가기 버튼 */
+.shell .meeting-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 14px;
+  border: 1px solid #0066cc;
+  background: #0066cc;
+  color: #fff;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.shell .meeting-entry svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 앱 전체 버튼 기본 모양(index.css)이 회의 공간 버튼을 덮지 않게 한다 */
+.meeting-shell button {
+  line-height: 1.4;
+  font-weight: 500;
+}
+.meeting-shell button:hover:not(:disabled) {
+  background: var(--m-soft);
+}
+.meeting-shell button.primary:hover:not(:disabled),
+.meeting-shell .chat-input .send:hover:not(:disabled),
+.meeting-shell .bar-btn.on:hover:not(:disabled),
+.meeting-shell .check[aria-checked='true']:hover:not(:disabled) {
+  background: #1a5fd0;
+}
+.meeting-shell .follow-banner button:hover:not(:disabled) {
+  background: #f3f4f6;
+}
+.meeting-shell .space-switch button[aria-selected='true']:hover:not(:disabled) {
+  background: #fff;
+}
+.meeting-shell .status-badge.discussing:hover:not(:disabled) {
+  background: #ffe9cc;
+}
+.meeting-shell .status-badge.agreed:hover:not(:disabled) {
+  background: #d5f0de;
+}
+.meeting-shell .status-badge.hold:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+.meeting-shell .m-toolbar > button[aria-pressed='true']:hover:not(:disabled) {
+  background: var(--m-blue-soft);
+}
+.meeting-shell .chip:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+.meeting-shell :focus-visible {
+  outline: 2px solid var(--m-blue);
+  outline-offset: 2px;
+}
+.meeting-shell .editable:focus-visible {
+  outline: none;
+}

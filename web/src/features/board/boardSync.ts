@@ -26,6 +26,10 @@ export interface BoardSync {
   connections: Y.Map<BoardConnection>
   // 지운 connection_id. 지운 뒤 늦게 도착한 수정(관계·이름·방향)이 선을 되살리지 못하게 한다.
   removedConnectionIds: Y.Map<boolean>
+  // 같은 문서. 회의 공간(features/meeting)이 자기 항목·채팅을 이 문서에 따로 둔다.
+  doc: Y.Doc
+  // 지금 접속한 사람들의 일시 정보(이름·커서·보는 위치). 저장되지 않고, 나가면 사라진다.
+  awareness: WebsocketProvider['awareness']
   subscribeStatus: (listener: (status: SyncStatus) => void) => () => void
   // 연결되지 않은 이유(접속 거절인지 서버에 닿지 않는지). 연결되면 ok.
   subscribeAccess: (listener: (access: AccessState) => void) => () => void
@@ -120,6 +124,8 @@ function connect(): Shared {
     memo,
     connections,
     removedConnectionIds,
+    doc,
+    awareness: provider.awareness,
     subscribeStatus: (listener) => {
       listeners.add(listener)
       listener(status)
@@ -329,3 +335,6 @@ export function removeConnection(connectionId: string): void {
 }
 
 export const RELATIONS: Relation[] = ['1:1', '1:N', 'N:M']
+
+// 회의 공간 등 다른 곳에서도 같은 방식으로 ID를 만든다.
+export const newId = newCardId
